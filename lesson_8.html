@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+    <script src="Oak3D_v_0_5.js"></script>
+
+    <!-- 顶点着色器 -->
+    <script id="shader-vs" type="shader/vs">
+                attribute vec3 aPosition;
+                attribute vec2 aCoord;
+
+                uniform mat4 uMVMatrix;
+                uniform mat4 uPMatrix;
+
+                varying vec4 vColor;
+                varying vec2 vCoord;
+
+                void main( void )
+                {
+                    gl_Position = uPMatrix * uMVMatrix * vec4( aPosition, 1.0 );
+                    vCoord = aCoord;
+                }
+        </script>
+
+    <!-- 片段着色器 -->
+    <script id="shader-fs" type="shader/fs">
+
+                // 无这句, 下句报错
+                precision mediump float;
+
+                varying vec2 vCoord;
+
+                uniform sampler2D uSampler;
+
+                uniform vec3 uColor;
+
+                void main( void )
+                {
+                    vec4 textureColor = texture2D( uSampler, vec2( vCoord.s, vCoord.t ) );
+                    gl_FragColor = textureColor * vec4( uColor, 1.0 );
+                }
+        </script>
+
+    <!-- 正文 -->
+    <script>
+
+        var gl;
+
+        // 初始化 webgl
+        function initWebGL( canvas )
+        {
+            try
+            {
+                gl = canvas.getContext("experimental-webgl");
+
+                gl.viewportWidth = canvas.width;
+                gl.viewportHeight = canvas.height;
+            }catch (e)
+            {
+
+            }
+        }
+
+        // 获取 shader
+        function getShader( gl, id )
+        {
+            var shaderScript = document.getElementById( id );
+            if( !shaderScript )
+            {
+                console.log( "getShader return null ");
+                return null;
+            }
+
+            var str = "";
+            var k = shaderScript.firstChild;
+            while(k)
+            {
+                if( 3 === k.nodeType )
+                {
+                    str += k.textContent;
+                }
+                k = k.nextSibling;
+            }
+
+            var shader;
+            if( shaderScript.type == "shader/vs")
+            {
+                shader = gl.createShader( gl.VERTEX_SHADER );
+
+            }else if( shaderScript.type == "shader/fs" )
+            {
+                shader = gl.createShader( gl.FRAGMENT_SHADER );
+            }
+
+            gl.shaderSource( shader, str );
+            gl.compileShader( shader );
+
+            return shader;
+        }
+
+        var shaderProgram;
+        // 初始化 shader
+        function initShader()
+        {
+            var vertexShader    = getShader( gl, "shader-vs");
+            var fragmentShader  = getShader( gl, "shader-fs" );
+
+            shaderProgram = gl.createProgram();
+
+            gl.attachShader( shaderProgram, vertexShader );
+            gl.attachShader( shaderProgram, fragmentShader );
+            gl.linkProgram( shaderProgram );
+            gl.useProgram( shaderProgram );
+
+            shaderProgram.vertexPositionAttribute = gl.getAttribLocation( shaderProgram, "aPosition");
+            gl.enableVertexAttribArray( shaderProgram.vertexPositionAttribute );
+
+            shaderProgram.vertexCoordAttribute = gl.getAttribLocation( shaderProgram, "aCoord");
+            gl.enableVertexAttribArray( shaderProgram.vertexCoordAttribute );
+
+            shaderProgram.pMatrix   = gl.getUniformLocation( shaderProgram, "uPMatrix");
+            shaderProgram.mvMatrix  = gl.getUniformLocation( shaderProgram, "uMVMatrix");
+            shaderProgram.uSample  = gl.getUniformLocation( shaderProgram, "uSampler");
+            shaderProgram.uColor   = gl.getUniformLocation( shaderProgram, "uColor" );
+
+        }
+
+        var mvMatrix;
+        var pMatrix;
+
+        function setMatrixUniforms() {
+            gl.uniformMatrix4fv(shaderProgram.pMatrix, false, pMatrix.toArray());
+            gl.uniformMatrix4fv(shaderProgram.mvMatrix, false, mvMatrix.toArray());
+        }
+
+        var texture;
+
+        function initTexture()
+        {
+            // 创建一个纹理对象
+            texture = gl.createTexture();
+            texture.image = new Image();
+            texture.image.onload = function(){
+                handleLoadedTexture( texture );
+            }
+
+            texture.image.src = "star.gif";
+        }
+
+        function handleLoadedTexture( texture )
+        {
+            gl.bindTexture( gl.TEXTURE_2D, texture );
+            gl.pixelStorei( gl.UNPACK_FLIP_Y_WEBGL, true );
+
+            gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image );
+            gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST );
+            gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST );
+            gl.bindTexture( gl.TEXTURE_2D, null );
+        }
+
+        var starBuffer;
+        var starTextureCoordBuffer;
+
+        // 初始化信息 buffer
+        function initBuffer()
+        {
+            /**************** 顶点位置信息 ********************/
+
+            starBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, starBuffer );
+
+            vertices = [
+                -1.0, -1.0,  0.0,
+                1.0, -1.0,  0.0,
+                -1.0,  1.0,  0.0,
+                1.0,  1.0,  0.0
+            ];
+
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( vertices ), gl.STATIC_DRAW )
+            starBuffer.itemSize = 3;
+            starBuffer.numItems = 4;
+
+            /**************** 纹理坐标信息 ********************/
+
+            starTextureCoordBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, starTextureCoordBuffer );
+            var textureCoords = [
+                0.0, 0.0,
+                1.0, 0.0,
+                0.0, 1.0,
+                1.0, 1.0
+            ];
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( textureCoords), gl.STATIC_DRAW );
+            starTextureCoordBuffer.numItems = 4;
+            starTextureCoordBuffer.itemSize = 2;
+
+        }
+
+        // 起初面对的 XZ 平面
+        var xRot = 90;
+        var spin = 0;
+
+        var z = -15.0;
+
+        // 绘制
+        function drawScene()
+        {
+            gl.viewport( 0, 0, gl.viewportWidth, gl.viewportHeight );
+            gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
+
+            /************************************/
+
+            pMatrix = okMat4Proj(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
+
+            /************************************/
+
+            gl.enable( gl.BLEND );
+            gl.blendFunc( gl.SRC_ALPHA, gl.ONE );
+
+            /************************************/
+
+            mvMatrix = new okMat4();
+
+            mvMatrix.translate( OAK.SPACE_WORLD, 0.0, 0.0, z, true);
+            mvMatrix.rotX( OAK.SPACE_LOCAL, xRot, true );
+
+            /*
+
+             * 2016.6.12 Add By Oliner
+             *
+             * 更改渲染结构
+
+             */
+
+            var isTwinkle = document.getElementById("twinkleing").checked;
+
+            for( var i in stars )
+            {
+                stars[i].draw( xRot, spin, isTwinkle );
+                spin += 0.1;
+            }
+
+        }
+
+        function drawStar()
+        {
+            gl.activeTexture( gl.TEXTURE0 );
+            gl.bindTexture( gl.TEXTURE_2D, texture );
+            gl.uniform1i( shaderProgram.uSample, 0 );
+
+            gl.bindBuffer( gl.ARRAY_BUFFER, starBuffer );
+            gl.vertexAttribPointer( shaderProgram.vertexPositionAttribute, starBuffer.itemSize, gl.FLOAT, false, 0, 0 );
+
+            gl.bindBuffer( gl.ARRAY_BUFFER, starTextureCoordBuffer );
+            gl.vertexAttribPointer( shaderProgram.vertexCoordAttribute, starTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0 );
+
+            setMatrixUniforms();
+            gl.drawArrays( gl.TRIANGLE_STRIP, 0, starBuffer.numItems );
+        }
+
+        // 初始化世界物体
+        var stars = [];
+
+        function initWorldObjects()
+        {
+            var numStats = 50;
+
+            for( var i = 0; i < numStats; i++ )
+            {
+                stars.push( new Star( ( i / numStats ) * 5.0, ( i / numStats ) ) );
+            }
+
+        }
+
+        // 生成新星星
+        // @param startDistance 距离场景中心距离
+        // @param rotationSpeed 围绕场景中心旋转速度
+        function Star( startDistance, rotationSpeed )
+        {
+            this.angle = 0;
+            this.dist = startDistance;
+            this.rotationSpeed = rotationSpeed;
+
+            this.randomColors();
+        }
+
+        // 随机星星颜色 和 闪光颜色
+        Star.prototype.randomColors = function()
+        {
+            this.r = Math.random();
+            this.g = Math.random();
+            this.b = Math.random();
+
+            this.twinkleR = Math.random();
+            this.twinkleG = Math.random();
+            this.twinkleB = Math.random();
+        }
+
+        // 绘制星星
+        // @param rot       X-轴倾斜度
+        // @param spin      自转角度
+        // @param isTwinkle 是否闪光
+        Star.prototype.draw = function( rot, spin, isTwinkle )
+        {
+            mvPushMatrix();
+
+            // 我们面对的是 XZ 平面, 所有星星旋转是环绕 Y-轴 在旋转
+            // 首先在星星的本地坐标系旋转, 然后在移动到位置
+            // 此时星星的本地坐标系相对世界坐标系是旋转 this.angle 角度的, 而星星的位置还在星星的本地坐标系的 X-轴上.
+            mvMatrix.rotY( OAK.SPACE_LOCAL, this.angle, true );
+            mvMatrix.translate( OAK.SPACE_LOCAL, this.dist, 0.0, 0.0, true );
+
+            // 恢复星星的本地坐标旋转的角度
+            mvMatrix.rotY(OAK.SPACE_LOCAL, -this.angle, true);
+            // 根据世界坐标系人为更改的 X-轴倾斜角度, 改变星星本地坐标的 X-轴倾斜角度, 使星星一直保持面向观察者, 类似"公告板"
+            mvMatrix.rotX(OAK.SPACE_LOCAL, -xRot, true);
+
+            // 如果开启闪光, 先绘制一个不自转的底图
+            if( isTwinkle )
+            {
+                gl.uniform3f( shaderProgram.uColor, this.twinkleR, this.twinkleG, this.twinkleB );
+                drawStar();
+            }
+
+            mvMatrix.rotZ( OAK.SPACE_LOCAL, spin, true );
+
+            gl.uniform3f( shaderProgram.uColor, this.r, this.g, this.b );
+            drawStar();
+
+            mvPopMatrix();
+        }
+
+        // 星星动画
+        var effFPMS = 60 / 1000;
+
+        Star.prototype.animate = function( subTime )
+        {
+            this.angle += this.rotationSpeed * effFPMS * subTime;
+
+            this.dist -= 0.01 * effFPMS * subTime;
+            if( 0.0 > this.dist )
+            {
+                this.dist += 5.0;
+                this.randomColors();
+            }
+        }
+
+        var lastTime = 0;
+
+        function animate()
+        {
+            var timeNow = Date.now();
+            if( 0 != lastTime )
+            {
+                var subTime = timeNow - lastTime;
+
+                for( var i in stars )
+                {
+                    stars[i].animate( subTime );
+                }
+            }
+            lastTime = timeNow;
+        }
+
+        function tick()
+        {
+            requestAnimationFrame( tick );
+
+            handleKeys();
+            drawScene();
+            animate();
+        }
+
+        function handleKeys()
+        {
+            if( currPressKey[33] )
+            {
+                z -= 0.05;
+            }
+
+            if( currPressKey[34] )
+            {
+                z += 0.05;
+            }
+            if ( currPressKey[38] )
+            {
+                xRot += 2;
+            }
+            if ( currPressKey[40] )
+            {
+                xRot -= 2;
+            }
+        }
+
+        var mvMatrixStack = [];
+
+        function mvPushMatrix()
+        {
+            var copy = new okMat4();
+            mvMatrix.clone( copy );
+            mvMatrixStack.push( copy );
+        }
+
+        function mvPopMatrix()
+        {
+            if ( 0 == mvMatrixStack.length )
+            {
+                throw "Invalid popMatrix!";
+            }
+            mvMatrix = mvMatrixStack.pop();
+        }
+
+        var currPressKey = {};
+
+        // 按键按下
+        function handleKeyDown( event )
+        {
+            currPressKey[ event.keyCode ] = true;
+        }
+
+        // 按键抬起
+        function handleKeyUp( event )
+        {
+            currPressKey[ event.keyCode ] = false;
+        }
+
+        // 入口函数
+        function WebGLStart()
+        {
+            var canvas = document.getElementById("lesson_8");
+
+            initWebGL( canvas );
+            initShader();
+            initBuffer();
+            initTexture();
+            initWorldObjects();
+
+            gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
+
+            document.onkeydown = handleKeyDown;
+            document.onkeyup = handleKeyUp;
+
+            tick();
+        }
+
+    </script>
+
+</head>
+<body onload="WebGLStart();">
+
+<canvas id="lesson_8" style="border: none;" width="500" height="500"></canvas>
+
+</br>
+
+<input type="checkbox" id="twinkleing" unchecked /> 开启闪光<br/>
+
+</body>
+</html>

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+    <script src="Oak3D_v_0_5.js"></script>
+
+    <!-- 顶点着色器 -->
+    <script id="shader-vs" type="shader/vs">
+                attribute vec3 aPosition;
+                attribute vec2 aCoord;
+
+                uniform mat4 uMVMatrix;
+                uniform mat4 uPMatrix;
+
+                varying vec4 vColor;
+                varying vec2 vCoord;
+
+                void main( void )
+                {
+                    gl_Position = uPMatrix * uMVMatrix * vec4( aPosition, 1.0 );
+                    vCoord = aCoord;
+                }
+        </script>
+
+    <!-- 片段着色器 -->
+    <script id="shader-fs" type="shader/fs">
+
+                // 无这句, 下句报错
+                precision mediump float;
+
+                varying vec2 vCoord;
+
+                uniform sampler2D uSampler;
+
+                void main( void )
+                {
+                    gl_FragColor = texture2D( uSampler, vec2( vCoord.s, vCoord.t ) );
+                }
+        </script>
+
+    <!-- 正文 -->
+    <script>
+
+        var gl;
+
+        // 初始化 webgl
+        function initWebGL( canvas )
+        {
+            try
+            {
+                gl = canvas.getContext("experimental-webgl");
+
+                gl.viewportWidth = canvas.width;
+                gl.viewportHeight = canvas.height;
+            }catch (e)
+            {
+
+            }
+        }
+
+        // 获取 shader
+        function getShader( gl, id )
+        {
+            var shaderScript = document.getElementById( id );
+            if( !shaderScript )
+            {
+                console.log( "getShader return null ");
+                return null;
+            }
+
+            var str = "";
+            var k = shaderScript.firstChild;
+            while(k)
+            {
+                if( 3 === k.nodeType )
+                {
+                    str += k.textContent;
+                }
+                k = k.nextSibling;
+            }
+
+            var shader;
+            if( shaderScript.type == "shader/vs")
+            {
+                shader = gl.createShader( gl.VERTEX_SHADER );
+
+            }else if( shaderScript.type == "shader/fs" )
+            {
+                shader = gl.createShader( gl.FRAGMENT_SHADER );
+            }
+
+            gl.shaderSource( shader, str );
+            gl.compileShader( shader );
+
+            return shader;
+        }
+
+        var shaderProgram;
+        // 初始化 shader
+        function initShader()
+        {
+            var vertexShader    = getShader( gl, "shader-vs");
+            var fragmentShader  = getShader( gl, "shader-fs" );
+
+            shaderProgram = gl.createProgram();
+
+            gl.attachShader( shaderProgram, vertexShader );
+            gl.attachShader( shaderProgram, fragmentShader );
+            gl.linkProgram( shaderProgram );
+            gl.useProgram( shaderProgram );
+
+            shaderProgram.vertexPositionAttribute = gl.getAttribLocation( shaderProgram, "aPosition");
+            gl.enableVertexAttribArray( shaderProgram.vertexPositionAttribute );
+
+            shaderProgram.vertexCoordAttribute = gl.getAttribLocation( shaderProgram, "aCoord");
+            gl.enableVertexAttribArray( shaderProgram.vertexCoordAttribute );
+
+            shaderProgram.pMatrix   = gl.getUniformLocation( shaderProgram, "uPMatrix");
+            shaderProgram.mvMatrix  = gl.getUniformLocation( shaderProgram, "uMVMatrix");
+            shaderProgram.uSample  = gl.getUniformLocation( shaderProgram, "uSampler");
+
+        }
+
+        var mvMatrix;
+        var pMatrix;
+
+        function setMatrixUniforms() {
+            gl.uniformMatrix4fv(shaderProgram.pMatrix, false, pMatrix.toArray());
+            gl.uniformMatrix4fv(shaderProgram.mvMatrix, false, mvMatrix.toArray());
+        }
+
+        var texture;
+
+        function initTexture()
+        {
+            // 创建一个纹理对象
+            texture = gl.createTexture();
+            texture.image = new Image();
+            texture.image.onload = function(){
+                handleLoadedTexture( texture );
+            }
+
+            texture.image.src = "nehe.gif";
+        }
+
+        function handleLoadedTexture( texture )
+        {
+            // 绑定纹理对象
+            gl.bindTexture( gl.TEXTURE_2D, texture );
+            // 由于坐标系问题, 直接贴图的图像是颠倒的, 用这个来调整坐标系.
+            gl.pixelStorei( gl.UNPACK_FLIP_Y_WEBGL, true );
+            // @param target            目标纹理, 必须是 gl.TEXTURE_2D
+            // @param level             细节级别
+            // @param internalformat    纹理中的颜色组件
+            // @param format            像素数据的颜色格式
+            // @param type              像素数据的数据类型
+            // @param pixels            图像数据
+            gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image );
+            // 纹理过滤 API
+            // @param gl.TEXTURE_2D                                 操作 2D 纹理
+            // @param gl.TEXTURE_MAG_FILTER / gl.TEXTURE_MIN_FILTER 放大 / 缩小过滤
+            // @param gl.NEAREST /                                  对最接近当前多边形的解析度的两个层级贴图进行采样,然后用这两个值进行线性插值. /
+            //        gl.LINEAR                                     线性过滤, 使用距离当前渲染像素中心最近的4个纹素加权平均值.
+            gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST );
+            gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST );
+            gl.bindTexture( gl.TEXTURE_2D, null );
+        }
+
+        var cubeBuffer;
+        // 纹理坐标数组
+        var cubeTextureCoordBuffer;
+        var cubeIndexBuffer;
+
+        // 初始化信息 buffer
+        function initBuffer()
+        {
+            /**************** 顶点位置信息 ********************/
+
+            cubeBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, cubeBuffer );
+
+            vertices = [
+                // Front face
+                -1.0, -1.0,  1.0,
+                1.0, -1.0,  1.0,
+                1.0,  1.0,  1.0,
+                -1.0,  1.0,  1.0,
+
+                // Back face
+                -1.0, -1.0, -1.0,
+                -1.0,  1.0, -1.0,
+                1.0,  1.0, -1.0,
+                1.0, -1.0, -1.0,
+
+                // Top face
+                -1.0,  1.0, -1.0,
+                -1.0,  1.0,  1.0,
+                1.0,  1.0,  1.0,
+                1.0,  1.0, -1.0,
+
+                // Bottom face
+                -1.0, -1.0, -1.0,
+                1.0, -1.0, -1.0,
+                1.0, -1.0,  1.0,
+                -1.0, -1.0,  1.0,
+
+                // Right face
+                1.0, -1.0, -1.0,
+                1.0,  1.0, -1.0,
+                1.0,  1.0,  1.0,
+                1.0, -1.0,  1.0,
+
+                // Left face
+                -1.0, -1.0, -1.0,
+                -1.0, -1.0,  1.0,
+                -1.0,  1.0,  1.0,
+                -1.0,  1.0, -1.0
+            ];
+
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( vertices ), gl.STATIC_DRAW )
+            cubeBuffer.itemSize = 3;
+            cubeBuffer.numItems = 24;
+
+            /**************** 纹理坐标信息 ********************/
+
+            cubeTextureCoordBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, cubeTextureCoordBuffer );
+            var textureCoords = [
+                // Front face
+                0.0, 0.0,
+                1.0, 0.0,
+                1.0, 1.0,
+                0.0, 1.0,
+
+                // Back face
+                1.0, 0.0,
+                1.0, 1.0,
+                0.0, 1.0,
+                0.0, 0.0,
+
+                // Top face
+                0.0, 1.0,
+                0.0, 0.0,
+                1.0, 0.0,
+                1.0, 1.0,
+
+                // Bottom face
+                1.0, 1.0,
+                0.0, 1.0,
+                0.0, 0.0,
+                1.0, 0.0,
+
+                // Right face
+                1.0, 0.0,
+                1.0, 1.0,
+                0.0, 1.0,
+                0.0, 0.0,
+
+                // Left face
+                0.0, 0.0,
+                1.0, 0.0,
+                1.0, 1.0,
+                0.0, 1.0,
+            ];
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( textureCoords), gl.STATIC_DRAW );
+            cubeTextureCoordBuffer.numItems = 24;
+            cubeTextureCoordBuffer.itemSize = 2;
+
+
+            /**************** 索引信息 ********************/
+
+            cubeIndexBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ELEMENT_ARRAY_BUFFER, cubeIndexBuffer );
+
+            // 一个正方形面由 2 个三角形组成
+            var cubeVertexIndices = [
+                0, 1, 2,      0, 2, 3,    // Front face
+                4, 5, 6,      4, 6, 7,    // Back face
+                8, 9, 10,     8, 10, 11,  // Top face
+                12, 13, 14,   12, 14, 15, // Bottom face
+                16, 17, 18,   16, 18, 19, // Right face
+                20, 21, 22,   20, 22, 23  // Left face
+            ];
+
+            gl.bufferData( gl.ELEMENT_ARRAY_BUFFER, new Uint16Array( cubeVertexIndices ), gl.STATIC_DRAW );
+            cubeIndexBuffer.itemSize = 1;
+            cubeIndexBuffer.numItems = 36;
+
+        }
+
+        var xRot = 0;
+        var yRot = 0;
+        var zRot = 0
+        // 绘制
+        function drawScene()
+        {
+            gl.viewport( 0, 0, gl.viewportWidth, gl.viewportHeight );
+            gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
+
+            /************************************/
+
+            pMatrix = okMat4Proj(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
+
+            /************************************/
+
+            mvMatrix = new okMat4();
+
+            mvPushMatrix();
+            mvMatrix.translate( OAK.SPACE_WORLD, 0.0, 0.0, -7.0, true);
+            mvMatrix.rotX( OAK.SPACE_LOCAL, xRot, true );
+            mvMatrix.rotY( OAK.SPACE_LOCAL, yRot, true );
+            mvMatrix.rotZ( OAK.SPACE_LOCAL, zRot, true );
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, cubeBuffer);
+            gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, cubeBuffer.itemSize, gl.FLOAT, false, 0, 0 );
+
+            gl.bindBuffer( gl.ARRAY_BUFFER, cubeTextureCoordBuffer );
+            gl.vertexAttribPointer( shaderProgram.vertexCoordAttribute, cubeTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0 );
+
+            // 使用纹理
+            gl.activeTexture( gl.TEXTURE0 );
+            gl.bindTexture( gl.TEXTURE_2D, texture );
+            gl.uniform1i( shaderProgram.uSample, 0 );
+
+            setMatrixUniforms();
+
+            gl.bindBuffer( gl.ELEMENT_ARRAY_BUFFER, cubeIndexBuffer );
+            gl.drawElements( gl.TRIANGLES, cubeIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0 );
+
+            mvPopMatrix();
+        }
+
+        var lastTime = 0;
+
+        // 更新旋转角度
+        function animate()
+        {
+            var timeNow = Date.now();
+            if( 0 != lastTime )
+            {
+                var subTime = timeNow - lastTime;
+
+                xRot -= ( 75.0 * subTime ) / 1000.0;
+                yRot -= ( 75.0 * subTime ) / 1000.0;
+                zRot -= ( 75.0 * subTime ) / 1000.0;
+            }
+            lastTime = timeNow;
+        }
+
+        function tick()
+        {
+            requestAnimationFrame( tick );
+
+            drawScene();
+            animate();
+        }
+
+        var mvMatrixStack = [];
+
+        function mvPushMatrix()
+        {
+            var copy = new okMat4();
+            mvMatrix.clone( copy );
+            mvMatrixStack.push( copy );
+        }
+
+        function mvPopMatrix()
+        {
+            if ( 0 == mvMatrixStack.length )
+            {
+                throw "Invalid popMatrix!";
+            }
+            mvMatrix = mvMatrixStack.pop();
+        }
+
+        // 入口函数
+        function WebGLStart()
+        {
+            var canvas = document.getElementById("lesson_4");
+
+            initWebGL( canvas );
+            initShader();
+            initBuffer();
+            initTexture();
+
+            gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
+            gl.enable( gl.DEPTH_TEST );
+
+            tick();
+        }
+
+    </script>
+
+</head>
+<body onload="WebGLStart();">
+
+<canvas id="lesson_4" style="border: none;" width="500" height="500"></canvas>
+
+</body>
+</html>
