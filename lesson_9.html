@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+    <style type="text/css">
+        #loadtext
+        {
+            position: absolute;
+            top: 250px;
+            left: 150px;
+            font-size: 2em;
+            color: blue;
+        }
+
+    </style>
+
+    <script src="Oak3D_v_0_5.js"></script>
+
+    <!-- 顶点着色器 -->
+    <script id="shader-vs" type="shader/vs">
+                attribute vec3 aPosition;
+                attribute vec2 aCoord;
+
+                uniform mat4 uMVMatrix;
+                uniform mat4 uPMatrix;
+
+                varying vec4 vColor;
+                varying vec2 vCoord;
+
+                void main( void )
+                {
+                    gl_Position = uPMatrix * uMVMatrix * vec4( aPosition, 1.0 );
+                    vCoord = aCoord;
+                }
+        </script>
+
+    <!-- 片段着色器 -->
+    <script id="shader-fs" type="shader/fs">
+
+                // 无这句, 下句报错
+                precision mediump float;
+
+                varying vec2 vCoord;
+
+                uniform sampler2D uSampler;
+
+                void main( void )
+                {
+                    vec4 textureColor = texture2D( uSampler, vec2( vCoord.s, vCoord.t ) );
+                    gl_FragColor = textureColor;
+                }
+        </script>
+
+    <!-- 正文 -->
+    <script>
+
+        var gl;
+
+        // 初始化 webgl
+        function initWebGL( canvas )
+        {
+            try
+            {
+                gl = canvas.getContext("experimental-webgl");
+
+                gl.viewportWidth = canvas.width;
+                gl.viewportHeight = canvas.height;
+            }catch (e)
+            {
+
+            }
+        }
+
+        // 获取 shader
+        function getShader( gl, id )
+        {
+            var shaderScript = document.getElementById( id );
+            if( !shaderScript )
+            {
+                console.log( "getShader return null ");
+                return null;
+            }
+
+            var str = "";
+            var k = shaderScript.firstChild;
+            while(k)
+            {
+                if( 3 === k.nodeType )
+                {
+                    str += k.textContent;
+                }
+                k = k.nextSibling;
+            }
+
+            var shader;
+            if( shaderScript.type == "shader/vs")
+            {
+                shader = gl.createShader( gl.VERTEX_SHADER );
+
+            }else if( shaderScript.type == "shader/fs" )
+            {
+                shader = gl.createShader( gl.FRAGMENT_SHADER );
+            }
+
+            gl.shaderSource( shader, str );
+            gl.compileShader( shader );
+
+            return shader;
+        }
+
+        var shaderProgram;
+        // 初始化 shader
+        function initShader()
+        {
+            var vertexShader    = getShader( gl, "shader-vs");
+            var fragmentShader  = getShader( gl, "shader-fs" );
+
+            shaderProgram = gl.createProgram();
+
+            gl.attachShader( shaderProgram, vertexShader );
+            gl.attachShader( shaderProgram, fragmentShader );
+            gl.linkProgram( shaderProgram );
+            gl.useProgram( shaderProgram );
+
+            shaderProgram.vertexPositionAttribute = gl.getAttribLocation( shaderProgram, "aPosition");
+            gl.enableVertexAttribArray( shaderProgram.vertexPositionAttribute );
+
+            shaderProgram.vertexCoordAttribute = gl.getAttribLocation( shaderProgram, "aCoord");
+            gl.enableVertexAttribArray( shaderProgram.vertexCoordAttribute );
+
+            shaderProgram.pMatrix   = gl.getUniformLocation( shaderProgram, "uPMatrix");
+            shaderProgram.mvMatrix  = gl.getUniformLocation( shaderProgram, "uMVMatrix");
+            shaderProgram.uSample  = gl.getUniformLocation( shaderProgram, "uSampler");
+
+        }
+
+        var mvMatrix;
+        var pMatrix;
+
+        function setMatrixUniforms() {
+            gl.uniformMatrix4fv(shaderProgram.pMatrix, false, pMatrix.toArray());
+            gl.uniformMatrix4fv(shaderProgram.mvMatrix, false, mvMatrix.toArray());
+        }
+
+        var texture;
+
+        function initTexture()
+        {
+            // 创建一个纹理对象
+            texture = gl.createTexture();
+            texture.image = new Image();
+            texture.image.onload = function(){
+                handleLoadedTexture( texture );
+            }
+
+            texture.image.src = "glass.gif";
+        }
+
+        function handleLoadedTexture( texture ) {
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.bindTexture(gl.TEXTURE_2D, null);
+        }
+
+        // 绕 X-轴旋转角度
+        var pitch   = 0;
+
+        // 绕 Y-轴旋转角度
+        var yaw     = 0;
+
+        // 绕 X-轴旋转角度速率
+        var pitchRate   = 0;
+
+        // 绕 X-轴旋转角度速率
+        var yawRate     = 0;
+
+        // 模拟摄像机位置
+        var xPos = 0;
+        var yPos = 0.4;
+        var zPos = 0;
+
+        // 移动速度
+        var moveSpeed;
+
+        // 绘制
+        function drawScene()
+        {
+            gl.viewport( 0, 0, gl.viewportWidth, gl.viewportHeight );
+            gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
+
+            /************************************/
+
+            if( ( null == worldVertexPositionBuffer ) || ( null == worldVertexTextureCoordBuffer ) )
+            {
+                return ;
+            }
+
+            /************************************/
+
+            pMatrix = okMat4Proj(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
+
+            /************************************/
+
+            mvMatrix = new okMat4();
+
+            // 这里使用本地坐标系, 是因为模拟出的相机位置是固定的, 仅仅头部是正弦波的, 场景的位置是参照本地坐标系原点进行相反的旋转和移动, 来假设出相机的移动
+            // 如果使用世界坐标系, 当相机在 ( 0, 0, 0 ) 点, 场景在 ( 0, 0, 0 )点时, 看不出什么差别, 而在其他点时候, 会出现错误的视觉效果.
+
+            // 仅仅按照此例来说明: 场景应该按照模拟相机坐在的正方向Y-轴来旋转, 而模拟相机恰好在点 ( 0, 0.4, 0 ) 处.
+
+            mvMatrix.rotX( OAK.SPACE_LOCAL, - pitch, true );
+            mvMatrix.rotY( OAK.SPACE_LOCAL, - yaw, true );
+
+            mvMatrix.translate( OAK.SPACE_LOCAL, - xPos, - yPos, - zPos, true);
+
+            /************************************/
+
+            gl.activeTexture( gl.TEXTURE0 );
+            gl.bindTexture( gl.TEXTURE_2D, texture );
+            gl.uniform1i( shaderProgram.uSample, 0 );
+
+            /************************************/
+
+            gl.bindBuffer( gl.ARRAY_BUFFER, worldVertexPositionBuffer );
+            gl.vertexAttribPointer( shaderProgram.vertexPositionAttribute, worldVertexPositionBuffer.itemSize, gl.FLOAT, false , 0, 0 );
+
+            gl.bindBuffer( gl.ARRAY_BUFFER, worldVertexTextureCoordBuffer );
+            gl.vertexAttribPointer( shaderProgram.vertexCoordAttribute, worldVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0 );
+
+            setMatrixUniforms();
+
+            gl.drawArrays( gl.TRIANGLES, 0, worldVertexPositionBuffer.numItems );
+
+        }
+
+        // 加载世界
+        function loadWorld()
+        {
+            // 创建一个 XMLHttpRequest 对象.
+            var request = new XMLHttpRequest();
+
+            // 通过 GET 请求获取与当前网页文件相同服务器, 相同目录下的名为 "world.txt" 的文件.
+            request.open("GET", "world.txt");
+
+            // 不同的载入阶段, 会实时更新的回调函数
+            request.onreadystatechange = function()
+            {
+                if( 4 == request.readyState )
+                {
+                    handleLoadedWorld( request.responseText );
+                }
+            }
+            // 使用 send() 方法开始正式获取文件.
+            request.send();
+        }
+
+        var worldVertexPositionBuffer = null;
+        var worldVertexTextureCoordBuffer = null;
+
+        // 解析载入文件的内容
+        function handleLoadedWorld( data )
+        {
+            var lines = data.split("\n");
+            var vertexCount = 0;
+            var vertexPositions = [];
+            var vertexTextureCoords = [];
+
+            for( var i in lines )
+            {
+                var vals = lines[ i ].replace(/^\s+/, "").split(/\s+/);
+                if (vals.length == 5 && vals[0] != "//") {
+
+                    // 获得前三位顶点坐标信息, x-y-z
+                    vertexPositions.push(parseFloat(vals[0]));
+                    vertexPositions.push(parseFloat(vals[1]));
+                    vertexPositions.push(parseFloat(vals[2]));
+
+                    // 获得后两位纹理坐标信息, s-t
+                    vertexTextureCoords.push(parseFloat(vals[3]));
+                    vertexTextureCoords.push(parseFloat(vals[4]));
+
+                    vertexCount += 1;
+                }
+            }
+
+            /*******************************************/
+
+            // 顶点位置信息 Buffer
+            worldVertexPositionBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, worldVertexPositionBuffer );
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( vertexPositions ), gl.STATIC_DRAW );
+            worldVertexPositionBuffer.itemSize = 3;
+            worldVertexPositionBuffer.numItems = vertexCount;
+
+            // 纹理坐标信息 Buffer
+            worldVertexTextureCoordBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, worldVertexTextureCoordBuffer );
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( vertexTextureCoords ), gl.STATIC_DRAW );
+            worldVertexTextureCoordBuffer.itemSize = 2;
+            worldVertexTextureCoordBuffer.numItems = vertexCount;
+
+            /*******************************************/
+
+            // 清空显示 Load Text
+            document.getElementById("loadtext").textContent = "";
+
+        }
+
+        var lastTime = 0;
+
+        // 移动中, 头部正弦波动角度
+        var joggingAngle = 0;
+
+        function animate()
+        {
+            var timeNow = Date.now();
+            if( 0 != lastTime )
+            {
+                var subTime = timeNow - lastTime;
+
+                if( 0 != moveSpeed )
+                {
+                    xPos -= Math.sin( degToRad( yaw ) ) * moveSpeed * subTime;
+                    zPos -= Math.cos( degToRad( yaw ) ) * moveSpeed * subTime;
+
+                    joggingAngle += subTime * 0.6;
+                    yPos = Math.sin( degToRad( joggingAngle ) ) / 20 + 0.4;
+                }
+
+                yaw += yawRate * subTime;
+                pitch += pitchRate * subTime;
+            }
+            lastTime = timeNow;
+        }
+
+        function degToRad( angle )
+        {
+            return ( angle * Math.PI / 180 );
+        }
+
+        function tick()
+        {
+            requestAnimationFrame( tick );
+
+            handleKeys();
+            drawScene();
+            animate();
+        }
+
+        function handleKeys()
+        {
+            if( currPressKey[ 33 ] )
+            {
+                // Page Up
+                pitchRate = 0.1;
+            }
+            else if( currPressKey[ 34 ] )
+            {
+                // Page Down
+                pitchRate = - 0.1;
+            }
+            else
+            {
+                pitchRate = 0;
+            }
+
+            if( ( currPressKey[ 37 ] ) || ( currPressKey[ 65 ] ) )
+            {
+                // Left Cursor Key Or "A"
+                yawRate = 0.1;
+            }
+            else if( ( currPressKey[ 39 ] ) || ( currPressKey[ 68 ] ) )
+            {
+                // Right Cursor Key Or "D"
+                yawRate = - 0.1;
+            }
+            else
+            {
+                yawRate = 0;
+            }
+
+            if( ( currPressKey[ 38 ] ) || ( currPressKey[ 87 ] ) )
+            {
+                // Up Cursor Key Or "W"
+                moveSpeed = 0.003;
+            }
+            else if( ( currPressKey[ 40 ] ) || ( currPressKey[ 83 ] ) )
+            {
+                // Down Cursor Key Or "S"
+                moveSpeed = - 0.003;
+            }
+            else
+            {
+                moveSpeed = 0;
+            }
+
+        }
+
+        var mvMatrixStack = [];
+
+        function mvPushMatrix()
+        {
+            var copy = new okMat4();
+            mvMatrix.clone( copy );
+            mvMatrixStack.push( copy );
+        }
+
+        function mvPopMatrix()
+        {
+            if ( 0 == mvMatrixStack.length )
+            {
+                throw "Invalid popMatrix!";
+            }
+            mvMatrix = mvMatrixStack.pop();
+        }
+
+        var currPressKey = {};
+
+        // 按键按下
+        function handleKeyDown( event )
+        {
+            currPressKey[ event.keyCode ] = true;
+        }
+
+        // 按键抬起
+        function handleKeyUp( event )
+        {
+            currPressKey[ event.keyCode ] = false;
+        }
+
+        // 入口函数
+        function WebGLStart()
+        {
+            var canvas = document.getElementById("lesson_9");
+
+            initWebGL( canvas );
+            initShader();
+            initTexture();
+            loadWorld();
+
+            gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
+            gl.enable( gl.DEPTH_TEST );
+
+            document.onkeydown = handleKeyDown;
+            document.onkeyup = handleKeyUp;
+
+            tick();
+        }
+
+    </script>
+
+</head>
+<body onload="WebGLStart();">
+
+<canvas id="lesson_9" style="border: none;" width="500" height="500"></canvas>
+
+<div id="loadtext">Loading world...</div>
+
+</br>
+
+使用方向键或WASD移动, 使用 Page Down 和 Page Up 来下看上看.
+
+</br>
+
+</body>
+</html>
