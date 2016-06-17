@@ -207,21 +207,25 @@
         var moonVertexNormalBuffer;
         var moonVertexIndexBuffer;
 
-        // 半径
         var radius;
-
-        //console.log( "radius = ", radius );
+        var latitudeBands;
+        var longitude;
 
         // 初始化信息 buffer
         function initBuffer()
         {
-            // 纬度等分 30
-            var latitudeBands = 30;
+            // 纬度等分
+            latitudeBands = parseInt( document.getElementById("latitudeBands").value );
 
-            // 经度等分 30
-            var longitude = 30;
+            // 经度等分
+            longitude = parseInt( document.getElementById("longitude").value );
 
+            // 半径
             radius = document.getElementById("moonRadius").value;
+
+            //console.log( "latitudeBands= ", latitudeBands );
+            //console.log( "longitude= ", longitude );
+            //console.log( "radius = ", radius );
 
             var vertexPositions     = [];
             var vertexTextureCoords = [];
@@ -266,9 +270,9 @@
                 }
             }
 
-            console.log( "vertexNormals length = ", vertexNormals.length / 3 );
-            console.log( "vertexTextureCoords length = ", vertexTextureCoords.length / 2 );
-            console.log( "vertexPositions length = ", vertexPositions.length / 3 );
+            //console.log( "vertexNormals length = ", vertexNormals.length / 3 );
+            //console.log( "vertexTextureCoords length = ", vertexTextureCoords.length / 2 );
+            //console.log( "vertexPositions length = ", vertexPositions.length / 3 );
 
             /**************** 索引信息 ********************/
 
@@ -292,7 +296,7 @@
 
             }
 
-            console.log( " indexData length = ", indexData.length );
+            //console.log( " indexData length = ", indexData.length );
 
             /************************************/
 
@@ -328,7 +332,9 @@
         function drawScene()
         {
             // 更改半径
-            if( document.getElementById("moonRadius").value != radius )
+            if( ( document.getElementById("moonRadius").value       != radius ) ||
+                ( document.getElementById("latitudeBands").value    != radius ) ||
+                ( document.getElementById("longitude").value        != radius ) )
             {
                 initBuffer();
             }
@@ -498,6 +504,18 @@
 <table style="border: 0; padding: 10.px;">
     <tr>
         <td>球体半径：<input type="text" id="moonRadius" value="2" />
+    </tr>
+</table>
+
+<table style="border: 0; padding: 10.px;">
+    <tr>
+        <td>纬度等分：<input type="text" id="latitudeBands" value="30" />
+    </tr>
+</table>
+
+<table style="border: 0; padding: 10.px;">
+    <tr>
+        <td>经度等分：<input type="text" id="longitude" value="30" />
     </tr>
 </table>
 
