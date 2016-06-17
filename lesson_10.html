@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+    <script src="Oak3D_v_0_5.js"></script>
+
+    <!-- 顶点着色器 -->
+    <script id="shader-vs" type="shader/vs">
+                attribute vec3 aPosition;
+                // 顶点法线
+                attribute vec3 aNormal;
+                attribute vec2 aCoord;
+
+                uniform mat4 uMVMatrix;
+                uniform mat4 uPMatrix;
+                // 法线计算矩阵
+                uniform mat4 uNMatrix;
+
+                // 环境光
+                uniform vec3 uAmbientColor;
+
+                // 方向光方向
+                uniform vec3 uLightingDirection;
+                // 方向光颜色
+                uniform vec3 uDirectionalColor;
+
+                // 是否开启光照
+                uniform bool uUseLighting;
+
+                varying vec2 vCoord;
+                varying vec3 vLightingWeighting;
+
+                void main( void )
+                {
+                    gl_Position = uPMatrix * uMVMatrix * vec4( aPosition, 1.0 );
+                    vCoord = aCoord;
+
+                    if( !uUseLighting )
+                    {
+                        vLightingWeighting = vec3( 1.0, 1.0, 1.0 );
+                    }
+                    else
+                    {
+                        // 根据法线矩阵, 计算经过变换后的法线
+                        vec3 transformNormal = ( uNMatrix * vec4( aNormal, 1.0 ) ).xyz;
+                        // 平行光反射权重
+                        float directionalLightWeighting = max( dot( transformNormal, uLightingDirection ), 0.0 );
+                        // 漫反射权重
+                        vLightingWeighting = uAmbientColor + uDirectionalColor * directionalLightWeighting;
+                    }
+                }
+        </script>
+
+    <!-- 片段着色器 -->
+    <script id="shader-fs" type="shader/fs">
+
+                // 无这句, 下句报错
+                precision mediump float;
+
+                varying vec2 vCoord;
+                varying vec3 vLightingWeighting;
+
+                uniform sampler2D uSampler;
+
+                void main( void )
+                {
+                    vec4 textureColor = texture2D( uSampler, vec2( vCoord.s, vCoord.t ) );
+                    gl_FragColor = vec4( textureColor.rgb * vLightingWeighting, textureColor.a );
+                }
+        </script>
+
+    <!-- 正文 -->
+    <script>
+
+        var gl;
+
+        // 初始化 webgl
+        function initWebGL( canvas )
+        {
+            try
+            {
+                gl = canvas.getContext("experimental-webgl");
+
+                gl.viewportWidth = canvas.width;
+                gl.viewportHeight = canvas.height;
+            }catch (e)
+            {
+
+            }
+        }
+
+        // 获取 shader
+        function getShader( gl, id )
+        {
+            var shaderScript = document.getElementById( id );
+            if( !shaderScript )
+            {
+                console.log( "getShader return null ");
+                return null;
+            }
+
+            var str = "";
+            var k = shaderScript.firstChild;
+            while(k)
+            {
+                if( 3 === k.nodeType )
+                {
+                    str += k.textContent;
+                }
+                k = k.nextSibling;
+            }
+
+            var shader;
+            if( shaderScript.type == "shader/vs")
+            {
+                shader = gl.createShader( gl.VERTEX_SHADER );
+
+            }else if( shaderScript.type == "shader/fs" )
+            {
+                shader = gl.createShader( gl.FRAGMENT_SHADER );
+            }
+
+            gl.shaderSource( shader, str );
+            gl.compileShader( shader );
+
+            return shader;
+        }
+
+        var shaderProgram;
+        // 初始化 shader
+        function initShader()
+        {
+            var vertexShader    = getShader( gl, "shader-vs");
+            var fragmentShader  = getShader( gl, "shader-fs" );
+
+            shaderProgram = gl.createProgram();
+
+            gl.attachShader( shaderProgram, vertexShader );
+            gl.attachShader( shaderProgram, fragmentShader );
+            gl.linkProgram( shaderProgram );
+            gl.useProgram( shaderProgram );
+
+            shaderProgram.vertexPositionAttribute = gl.getAttribLocation( shaderProgram, "aPosition");
+            gl.enableVertexAttribArray( shaderProgram.vertexPositionAttribute );
+
+            shaderProgram.vertexCoordAttribute = gl.getAttribLocation( shaderProgram, "aCoord");
+            gl.enableVertexAttribArray( shaderProgram.vertexCoordAttribute );
+
+            shaderProgram.vertexNormalAttribute = gl.getAttribLocation( shaderProgram, "aNormal" );
+            gl.enableVertexAttribArray( shaderProgram.vertexNormalAttribute );
+
+            shaderProgram.pMatrix   = gl.getUniformLocation( shaderProgram, "uPMatrix");
+            shaderProgram.mvMatrix  = gl.getUniformLocation( shaderProgram, "uMVMatrix");
+            shaderProgram.uSample   = gl.getUniformLocation( shaderProgram, "uSampler");
+            shaderProgram.uNMatrix  = gl.getUniformLocation( shaderProgram, "uNMatrix" );
+
+            shaderProgram.uUseLighting       = gl.getUniformLocation( shaderProgram, "uUseLighting" );
+            shaderProgram.uAmbientColor      = gl.getUniformLocation( shaderProgram, "uAmbientColor" );
+            shaderProgram.uDirectionalColor  = gl.getUniformLocation( shaderProgram, "uDirectionalColor" );
+            shaderProgram.uLightingDirection = gl.getUniformLocation( shaderProgram, "uLightingDirection" );
+
+        }
+
+        var mvMatrix;
+        var pMatrix;
+
+        function setMatrixUniforms() {
+            gl.uniformMatrix4fv(shaderProgram.pMatrix, false, pMatrix.toArray());
+            gl.uniformMatrix4fv(shaderProgram.mvMatrix, false, mvMatrix.toArray());
+
+            var normalMatrix = mvMatrix.inverse().transpose();
+            gl.uniformMatrix4fv(shaderProgram.uNMatrix, false, normalMatrix.toArray());
+        }
+
+        var crateTexture;
+
+        function initTexture()
+        {
+            crateTexture = gl.createTexture();
+            crateTexture.image = new Image();
+
+            crateTexture.image.onload = function() {
+                handleLoadedTexture( crateTexture );
+            }
+
+            crateTexture.image.src = "moon.gif";
+
+        }
+
+        function handleLoadedTexture( texture )
+        {
+            gl.pixelStorei( gl.UNPACK_FLIP_Y_WEBGL, true );
+
+            gl.bindTexture( gl.TEXTURE_2D, texture );
+            gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, texture.image );
+            gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR );
+            gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST );
+            gl.generateMipmap( gl.TEXTURE_2D );
+
+            gl.bindTexture( gl.TEXTURE_2D, null );
+        }
+
+        var moonVertexPositionBuffer;
+        var moonVertexTextureCoordBuffer;
+        var moonVertexNormalBuffer;
+        var moonVertexIndexBuffer;
+
+        // 半径
+        var radius;
+
+        //console.log( "radius = ", radius );
+
+        // 初始化信息 buffer
+        function initBuffer()
+        {
+            // 纬度等分 30
+            var latitudeBands = 30;
+
+            // 经度等分 30
+            var longitude = 30;
+
+            radius = document.getElementById("moonRadius").value;
+
+            var vertexPositions     = [];
+            var vertexTextureCoords = [];
+            var vertexNormals       = [];
+
+            /**************** 顶点位置信息 ********************/
+            /**************** 纹理坐标信息 ********************/
+            /****************   法线信息   ********************/
+
+            for( var latNum = 0; latNum <= latitudeBands; latNum++ )
+            {
+                // 纬线上任一点与圆心的连线 和 Y-轴正方向 的夹角
+                // 从上到下是半圈, 所以弧度值是 Math.PI
+                var theta = latNum * ( Math.PI / latitudeBands );
+
+                var sinTheta = Math.sin( theta );
+                var cosTheta = Math.cos( theta );
+
+                for( var lonNum = 0; lonNum <= longitude; lonNum++ )
+                {
+                    // 经线一圈是360°, 所以弧度制是 ( 2 * Math.PI )
+                    var phi = lonNum * ( 2 * Math.PI / longitude );
+                    var sinPhi = Math.sin( phi );
+                    var cosPhi = Math.cos( phi );
+
+                    var x = sinTheta * cosPhi;
+                    var y = cosTheta;
+                    var z = sinTheta * sinPhi;
+                    var u = 1 - ( lonNum / longitude );
+                    var v = 1 - ( latNum / latitudeBands );
+
+                    vertexNormals.push( x );
+                    vertexNormals.push( y );
+                    vertexNormals.push( z );
+
+                    vertexTextureCoords.push( u );
+                    vertexTextureCoords.push( v );
+
+                    vertexPositions.push( ( radius * x ) );
+                    vertexPositions.push( ( radius * y ) );
+                    vertexPositions.push( ( radius * z ) );
+                }
+            }
+
+            console.log( "vertexNormals length = ", vertexNormals.length / 3 );
+            console.log( "vertexTextureCoords length = ", vertexTextureCoords.length / 2 );
+            console.log( "vertexPositions length = ", vertexPositions.length / 3 );
+
+            /**************** 索引信息 ********************/
+
+            var indexData = [];
+
+            for( var latNum = 0; latNum < latitudeBands; latNum++ )
+            {
+                for( var lonNum = 0; lonNum < longitude; lonNum++ )
+                {
+                    var first = ( latNum * ( longitude + 1 ) ) + lonNum;
+                    var second = first + longitude + 1;
+
+                    indexData.push( first );
+                    indexData.push( second );
+                    indexData.push( first + 1 );
+
+                    indexData.push( second );
+                    indexData.push( second + 1 );
+                    indexData.push( first + 1 );
+                }
+
+            }
+
+            console.log( " indexData length = ", indexData.length );
+
+            /************************************/
+
+            moonVertexPositionBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, moonVertexPositionBuffer );
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( vertexPositions ), gl.STATIC_DRAW );
+            moonVertexPositionBuffer.itemSize = 3;
+            moonVertexPositionBuffer.numItems = vertexPositions.length / 3;
+
+            moonVertexTextureCoordBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, moonVertexTextureCoordBuffer );
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( vertexTextureCoords ), gl.STATIC_DRAW );
+            moonVertexTextureCoordBuffer.itemSize = 2;
+            moonVertexTextureCoordBuffer.numItems = vertexTextureCoords.length / 2;
+
+            moonVertexNormalBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, moonVertexNormalBuffer );
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( vertexNormals ), gl.STATIC_DRAW );
+            moonVertexNormalBuffer.itemSize = 3;
+            moonVertexNormalBuffer.numItems = vertexNormals.length / 3;
+
+            moonVertexIndexBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ELEMENT_ARRAY_BUFFER, moonVertexIndexBuffer );
+            gl.bufferData( gl.ELEMENT_ARRAY_BUFFER, new Uint16Array( indexData ), gl.STATIC_DRAW );
+            moonVertexIndexBuffer.itemSize = 1;
+            moonVertexIndexBuffer.numItems = indexData.length;
+        }
+
+        // 单位矩阵
+        var moonRotationMatrix = new okMat4();
+
+        // 绘制
+        function drawScene()
+        {
+            // 更改半径
+            if( document.getElementById("moonRadius").value != radius )
+            {
+                initBuffer();
+            }
+
+            gl.viewport( 0, 0, gl.viewportWidth, gl.viewportHeight );
+            gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
+
+            /************************************/
+
+            pMatrix = okMat4Proj(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
+
+            /************************************/
+
+            var isLighting = document.getElementById("lighting").checked;
+            gl.uniform1i( shaderProgram.uUseLighting, isLighting );
+            if( isLighting )
+            {
+                gl.uniform3f(
+                        shaderProgram.uAmbientColor,
+                        parseFloat( document.getElementById("ambientR").value ),
+                        parseFloat( document.getElementById("ambientG").value ),
+                        parseFloat( document.getElementById("ambientB").value )
+                );
+
+                var lightingDirection = new okVec3(
+                        parseFloat( document.getElementById("lightDirectionX").value ),
+                        parseFloat( document.getElementById("lightDirectionY").value ),
+                        parseFloat( document.getElementById("lightDirectionZ").value )
+                );
+
+                var adjustedLD = lightingDirection.normalize( false );
+                adjustedLD = okVec3MulVal( adjustedLD, -1.0 );
+                gl.uniform3fv(shaderProgram.uLightingDirection, adjustedLD.toArray() );
+
+                gl.uniform3f(
+                        shaderProgram.uDirectionalColor,
+                        parseFloat(document.getElementById("directionalR").value),
+                        parseFloat(document.getElementById("directionalG").value),
+                        parseFloat(document.getElementById("directionalB").value)
+                );
+            }
+
+            /************************************/
+
+            mvMatrix = okMat4Trans( 0.0, 0.0, - 6.0 );
+            mvMatrix = okMat4Mul( mvMatrix, moonRotationMatrix );
+
+            // 使用纹理
+            gl.activeTexture( gl.TEXTURE0 );
+            gl.bindTexture( gl.TEXTURE_2D, crateTexture );
+            gl.uniform1i( shaderProgram.uSample, 0 );
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, moonVertexPositionBuffer );
+            gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, moonVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0 );
+
+            gl.bindBuffer( gl.ARRAY_BUFFER, moonVertexTextureCoordBuffer );
+            gl.vertexAttribPointer( shaderProgram.vertexCoordAttribute, moonVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0 );
+
+            gl.bindBuffer( gl.ARRAY_BUFFER, moonVertexNormalBuffer );
+            gl.vertexAttribPointer( shaderProgram.vertexNormalAttribute, moonVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0 );
+
+            setMatrixUniforms();
+
+            gl.bindBuffer( gl.ELEMENT_ARRAY_BUFFER, moonVertexIndexBuffer );
+            gl.drawElements( gl.TRIANGLES, moonVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0 );
+
+        }
+
+        function tick()
+        {
+            requestAnimationFrame( tick );
+
+            drawScene();
+        }
+
+        var mvMatrixStack = [];
+
+        function mvPushMatrix()
+        {
+            var copy = new okMat4();
+            mvMatrix.clone( copy );
+            mvMatrixStack.push( copy );
+        }
+
+        function mvPopMatrix()
+        {
+            if ( 0 == mvMatrixStack.length )
+            {
+                throw "Invalid popMatrix!";
+            }
+            mvMatrix = mvMatrixStack.pop();
+        }
+
+        // canvas 内鼠标按下确认位
+        var mouseDown = false;
+        var lastMouseX = null;
+        var lastMouseY = null;
+
+        function handleMouseDown( event )
+        {
+            mouseDown = true;
+
+            lastMouseX = event.clientX;
+            lastMouseY = event.clientY;
+        }
+
+        function handleMouseUp( event )
+        {
+            mouseDown = false;
+        }
+
+        function handleMouseMove( event )
+        {
+            if( ! mouseDown )
+            {
+                return ;
+            }
+
+            var newX = event.clientX;
+            var newY = event.clientY;
+
+            var newMoonRotation = new okMat4();
+
+            var deltaX = newX - lastMouseX;
+            newMoonRotation.rotY( OAK.SPACE_LOCAL, deltaX / 10, true );
+
+            var deltaY = newY - lastMouseY;
+            newMoonRotation.rotX( OAK.SPACE_LOCAL, deltaY / 10, true );
+
+            moonRotationMatrix = okMat4Mul( newMoonRotation, moonRotationMatrix );
+
+            lastMouseX = newX;
+            lastMouseY = newY;
+
+        }
+
+        // 入口函数
+        function WebGLStart()
+        {
+            var canvas = document.getElementById("lesson_10");
+
+            initWebGL( canvas );
+            initShader();
+            initBuffer();
+            initTexture();
+
+            gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
+            gl.enable( gl.DEPTH_TEST );
+
+            // 为了友好交互, 在整个界面允许`抬起`, `移动`事件. 因为鼠标会移动到 canvas 外, `抬起`以后, 如果未收到`抬起`事件, 球体还是在旋转.
+            canvas.onmousedown = handleMouseDown;
+            document.onmouseup = handleMouseUp;
+            document.onmousemove = handleMouseMove;
+
+            tick();
+        }
+
+    </script>
+
+</head>
+<body onload="WebGLStart();">
+
+<canvas id="lesson_10" style="border: none;" width="500" height="500"></canvas>
+
+<br/>
+
+<table style="border: 0; padding: 10.px;">
+    <tr>
+        <td>球体半径：<input type="text" id="moonRadius" value="2" />
+    </tr>
+</table>
+
+<input type="checkbox" id="lighting" checked /> 开启光照<br/>
+（拖拽鼠标，旋转月球。）
+
+<h2>平行光：</h2>
+
+<table style="border: 0; padding: 10px;">
+    <tr>
+        <td><b>方向：</b>
+        <td>X: <input type="text" id="lightDirectionX" value="-0.25" />
+        <td>Y: <input type="text" id="lightDirectionY" value="-0.25" />
+        <td>Z: <input type="text" id="lightDirectionZ" value="-1.0" />
+    </tr>
+    <tr>
+        <td><b>颜色：</b>
+        <td>R: <input type="text" id="directionalR" value="0.8" />
+        <td>G: <input type="text" id="directionalG" value="0.8" />
+        <td>B: <input type="text" id="directionalB" value="0.8" />
+    </tr>
+</table>
+
+<h2>环境光：</h2>
+<table style="border: 0; padding: 10px;">
+    <tr>
+        <td><b>颜色：</b>
+        <td>R: <input type="text" id="ambientR" value="0.2" />
+        <td>G: <input type="text" id="ambientG" value="0.2" />
+        <td>B: <input type="text" id="ambientB" value="0.2" />
+    </tr>
+</table>
+
+</body>
+</html>
