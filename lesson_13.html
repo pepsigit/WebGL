@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+    <script src="Oak3D_v_0_5.js"></script>
+
+    <!-- 逐片元顶点着色器 -->
+    <script id="use-fragment-shader-vs" type="shader/vs">
+                attribute vec3 aPosition;
+                attribute vec3 aNormal;
+                attribute vec2 aCoord;
+
+                uniform mat4 uMVMatrix;
+                uniform mat4 uPMatrix;
+                uniform mat4 uNMatrix;
+
+                varying vec4 vPosition;
+                varying vec3 vTransformNormal;
+                varying vec2 vCoord;
+
+
+                void main( void )
+                {
+                    vPosition = uMVMatrix * vec4( aPosition, 1.0 );
+                    gl_Position = uPMatrix * vPosition;
+                    vTransformNormal = ( uNMatrix * vec4( aNormal, 1.0 ) ).xyz;
+                    vCoord = aCoord;
+                }
+        </script>
+
+    <!-- 逐片元片段着色器 -->
+    <script id="use-fragment-shader-fs" type="shader/fs">
+
+                precision mediump float;
+
+                varying vec4 vPosition;
+                varying vec3 vTransformNormal;
+                varying vec2 vCoord;
+
+                uniform sampler2D uSampler;
+
+                // 光泽度
+                uniform float uMaterialShininess;
+
+                uniform bool uUseSpecularHighLights;
+                uniform bool uUseLighting;
+                uniform bool uUseTexture;
+
+                uniform vec3 uAmbientColor;
+
+                uniform vec3 uPointLightingPosition;
+                uniform vec3 uPointLightingSpecularColor;
+                uniform vec3 uPointLightingDiffuseColor;
+
+                void main( void )
+                {
+                    vec3 lightingWeight;
+
+                    // 是否开启光照
+                    if( !uUseLighting )
+                    {
+                        lightingWeight = vec3( 1.0, 1.0, 1.0 );
+                    }
+                    else
+                    {
+                        vec3 lightingDirection = normalize( uPointLightingPosition - vPosition.xyz );
+                        float directionalLightingWeight = max( dot( normalize( vTransformNormal ), lightingDirection ), 0.0 );
+
+                        float specularLightingWeight = 0.0;
+
+                        // 是否开启镜面高光
+                        if( uUseSpecularHighLights )
+                        {
+                            // 观察者方向 V
+                            vec3 v = normalize( vec3( 0, 0, 0 ) - vPosition.xyz );
+
+                            // 反射光方向
+                            vec3 r = reflect( -lightingDirection, normalize( vTransformNormal ) );
+
+                            specularLightingWeight = pow( max( dot( v, r ), 0.0 ), uMaterialShininess );
+                        }
+
+                        lightingWeight = uAmbientColor
+                                        + uPointLightingDiffuseColor * directionalLightingWeight
+                                        + uPointLightingSpecularColor * specularLightingWeight;
+                    }
+
+                    vec4 textureColor;
+
+                    // 是否使用纹理
+                    if( !uUseTexture )
+                    {
+                        textureColor = vec4( 1.0, 1.0, 1.0, 1.0 );
+                    }
+                    else
+                    {
+                       textureColor = texture2D( uSampler, vec2( vCoord.s, vCoord.t ) );
+                    }
+
+                    gl_FragColor = vec4( textureColor.rgb * lightingWeight, textureColor.a );
+                }
+        </script>
+
+    <!-- 正文 -->
+    <script>
+
+        var gl;
+
+        // 初始化 webgl
+        function initWebGL( canvas )
+        {
+            try
+            {
+                gl = canvas.getContext("experimental-webgl");
+
+                gl.viewportWidth = canvas.width;
+                gl.viewportHeight = canvas.height;
+            }catch (e)
+            {
+
+            }
+        }
+
+        // 获取 shader
+        function getShader( gl, id )
+        {
+            var shaderScript = document.getElementById( id );
+            if( !shaderScript )
+            {
+                console.log( "getShader return null ");
+                return null;
+            }
+
+            var str = "";
+            var k = shaderScript.firstChild;
+            while(k)
+            {
+                if( 3 === k.nodeType )
+                {
+                    str += k.textContent;
+                }
+                k = k.nextSibling;
+            }
+
+            var shader;
+            if( shaderScript.type == "shader/vs")
+            {
+                shader = gl.createShader( gl.VERTEX_SHADER );
+
+            }else if( shaderScript.type == "shader/fs" )
+            {
+                shader = gl.createShader( gl.FRAGMENT_SHADER );
+            }
+
+            gl.shaderSource( shader, str );
+            gl.compileShader( shader );
+
+            return shader;
+        }
+
+        var shaderProgram;
+
+        function initShader()
+        {
+            var vertexShader    = getShader( gl, "use-fragment-shader-vs" );
+            var fragmentShader  = getShader( gl, "use-fragment-shader-fs" );
+
+            shaderProgram = gl.createProgram();
+
+            gl.attachShader( shaderProgram, vertexShader );
+            gl.attachShader( shaderProgram, fragmentShader );
+            gl.linkProgram( shaderProgram );
+            gl.useProgram( shaderProgram );
+
+            shaderProgram.vertexPositionAttribute = gl.getAttribLocation( shaderProgram, "aPosition");
+            gl.enableVertexAttribArray( shaderProgram.vertexPositionAttribute );
+
+            shaderProgram.vertexCoordAttribute = gl.getAttribLocation( shaderProgram, "aCoord");
+            gl.enableVertexAttribArray( shaderProgram.vertexCoordAttribute );
+
+            shaderProgram.vertexNormalAttribute = gl.getAttribLocation( shaderProgram, "aNormal" );
+            gl.enableVertexAttribArray( shaderProgram.vertexNormalAttribute );
+
+            shaderProgram.pMatrix   = gl.getUniformLocation( shaderProgram, "uPMatrix");
+            shaderProgram.mvMatrix  = gl.getUniformLocation( shaderProgram, "uMVMatrix");
+            shaderProgram.uSample   = gl.getUniformLocation( shaderProgram, "uSampler");
+            shaderProgram.uNMatrix  = gl.getUniformLocation( shaderProgram, "uNMatrix" );
+
+            shaderProgram.uUseLighting                  = gl.getUniformLocation( shaderProgram, "uUseLighting" );
+            shaderProgram.uUseTexture                   = gl.getUniformLocation( shaderProgram, "uUseTexture" );
+            shaderProgram.uAmbientColor                 = gl.getUniformLocation( shaderProgram, "uAmbientColor" );
+            shaderProgram.uPointLightingSpecularColor   = gl.getUniformLocation( shaderProgram, "uPointLightingSpecularColor" );
+            shaderProgram.uPointLightingDiffuseColor    = gl.getUniformLocation( shaderProgram, "uPointLightingDiffuseColor");
+            shaderProgram.uPointLightingPosition        = gl.getUniformLocation( shaderProgram, "uPointLightingPosition" );
+            shaderProgram.uMaterialShininess            = gl.getUniformLocation( shaderProgram, "uMaterialShininess");
+            shaderProgram.uUseSpecularHighLights        = gl.getUniformLocation( shaderProgram, "uUseSpecularHighLights");
+
+        }
+
+        var mvMatrix;
+        var pMatrix;
+
+        function setMatrixUniforms() {
+            gl.uniformMatrix4fv(shaderProgram.pMatrix, false, pMatrix.toArray());
+            gl.uniformMatrix4fv(shaderProgram.mvMatrix, false, mvMatrix.toArray());
+
+            var normalMatrix = mvMatrix.inverse().transpose();
+            gl.uniformMatrix4fv(shaderProgram.uNMatrix, false, normalMatrix.toArray());
+        }
+
+        var earthTexture;
+        var galvanizedTexture;
+
+        function initTextures()
+        {
+            galvanizedTexture = gl.createTexture();
+            galvanizedTexture.image = new Image();
+
+            galvanizedTexture.image.onload = function(){
+                handleLoadedTexture( galvanizedTexture );
+            }
+
+            galvanizedTexture.image.src = "plating_metal.jpg";
+
+
+            earthTexture = gl.createTexture();
+            earthTexture.image = new Image();
+
+            earthTexture.image.onload = function() {
+                handleLoadedTexture( earthTexture );
+            }
+
+            earthTexture.image.src = "earth.jpg";
+
+        }
+
+        function handleLoadedTexture( texture )
+        {
+            gl.pixelStorei( gl.UNPACK_FLIP_Y_WEBGL, true );
+
+            gl.bindTexture( gl.TEXTURE_2D, texture );
+            gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, texture.image );
+            gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR );
+            gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST );
+            gl.generateMipmap( gl.TEXTURE_2D );
+
+            gl.bindTexture( gl.TEXTURE_2D, null );
+        }
+
+        function loadTeapot()
+        {
+            var request = new XMLHttpRequest();
+            request.open("GET", "Teapot.json");
+            request.onreadystatechange = function()
+            {
+                if( 4 == request.readyState )
+                {
+                    handleTeapot( JSON.parse( request.responseText ) );
+                }
+            }
+            request.send();
+        }
+
+        var teapotVertexPositionBuffer;
+        var teapotVertexTextureCoordBuffer;
+        var teapotVertexNormalBuffer;
+        var teapotVertexIndexBuffer;
+
+        function handleTeapot( responseText )
+        {
+            teapotVertexPositionBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, teapotVertexPositionBuffer );
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( responseText.vertexPositions ), gl.STATIC_DRAW );
+            teapotVertexPositionBuffer.itemSize = 3;
+            teapotVertexPositionBuffer.numItems = responseText.vertexPositions.length / 3;
+
+            teapotVertexTextureCoordBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, teapotVertexTextureCoordBuffer );
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( responseText.vertexTextureCoords ), gl.STATIC_DRAW );
+            teapotVertexTextureCoordBuffer.itemSize = 2;
+            teapotVertexTextureCoordBuffer.numItems = responseText.vertexTextureCoords.length / 2;
+
+            teapotVertexNormalBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, teapotVertexNormalBuffer );
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( responseText.vertexNormals ), gl.STATIC_DRAW );
+            teapotVertexNormalBuffer.itemSize = 3;
+            teapotVertexNormalBuffer.numItems = responseText.vertexNormals.length / 3;
+
+            teapotVertexIndexBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ELEMENT_ARRAY_BUFFER, teapotVertexIndexBuffer );
+            gl.bufferData( gl.ELEMENT_ARRAY_BUFFER, new Uint16Array( responseText.indices ), gl.STATIC_DRAW );
+            teapotVertexIndexBuffer.itemSize = 1;
+            teapotVertexIndexBuffer.numItems = responseText.indices.length;
+        }
+
+        var teapotAngle = 180;
+
+        function drawScene()
+        {
+
+            gl.viewport( 0, 0, gl.viewportWidth, gl.viewportHeight );
+            gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
+
+            if( ( null == teapotVertexPositionBuffer ) ||
+                ( null == teapotVertexTextureCoordBuffer ) ||
+                ( null == teapotVertexNormalBuffer ) ||
+                ( null == teapotVertexIndexBuffer ) )
+            {
+                return ;
+            }
+
+            /************************************/
+
+            pMatrix = okMat4Proj(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
+
+            /************************************/
+
+            var isHighLight = document.getElementById("specular").checked;
+            gl.uniform1i( shaderProgram.uUseSpecularHighLights, isHighLight );
+
+            var isLighting = document.getElementById("lighting").checked;
+            gl.uniform1i( shaderProgram.uUseLighting, isLighting );
+            if( isLighting )
+            {
+                gl.uniform3f(
+                        shaderProgram.uAmbientColor,
+                        parseFloat( document.getElementById("ambientR").value ),
+                        parseFloat( document.getElementById("ambientG").value ),
+                        parseFloat( document.getElementById("ambientB").value )
+                );
+
+                gl.uniform3f(shaderProgram.uPointLightingPosition,
+                        parseFloat( document.getElementById("pointlightPositionX").value ),
+                        parseFloat( document.getElementById("pointlightPositionY").value ),
+                        parseFloat( document.getElementById("pointlightPositionZ").value ));
+
+                gl.uniform3f(
+                        shaderProgram.uPointLightingSpecularColor,
+                        parseFloat( document.getElementById("specularR").value ),
+                        parseFloat( document.getElementById("specularG").value ),
+                        parseFloat( document.getElementById("specularB").value )
+                );
+
+                gl.uniform3f(
+                        shaderProgram.uPointLightingDiffuseColor,
+                        parseFloat( document.getElementById("diffuseR").value ),
+                        parseFloat( document.getElementById("diffuseG").value ),
+                        parseFloat( document.getElementById("diffuseB").value )
+                );
+            }
+
+            var texture = document.getElementById("texture").value;
+            gl.uniform1i(shaderProgram.uUseTexture, ( texture != "none" ) );
+
+            /************************************/
+
+            mvMatrix = okMat4Trans( 0.0, 0.0, - 40.0 );
+
+            mvMatrix.rot(OAK.SPACE_LOCAL, 23.4, 1, 0, -1, true);
+            mvMatrix.rotY( OAK.SPACE_LOCAL, teapotAngle, true );
+
+            gl.activeTexture( gl.TEXTURE0 );
+            if( texture == "earth")
+            {
+                gl.bindTexture( gl.TEXTURE_2D, earthTexture );
+            }
+            else if( texture == "galvanized" )
+            {
+                gl.bindTexture( gl.TEXTURE_2D, galvanizedTexture );
+            }
+            gl.uniform1i( shaderProgram.uSample, 0 );
+
+            gl.uniform1f( shaderProgram.uMaterialShininess, parseFloat(document.getElementById("shininess").value) );
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexPositionBuffer );
+            gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, teapotVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0 );
+
+            gl.bindBuffer( gl.ARRAY_BUFFER, teapotVertexTextureCoordBuffer );
+            gl.vertexAttribPointer( shaderProgram.vertexCoordAttribute, teapotVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0 );
+
+            gl.bindBuffer( gl.ARRAY_BUFFER, teapotVertexNormalBuffer );
+            gl.vertexAttribPointer( shaderProgram.vertexNormalAttribute, teapotVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0 );
+
+            setMatrixUniforms();
+
+            gl.bindBuffer( gl.ELEMENT_ARRAY_BUFFER, teapotVertexIndexBuffer );
+            gl.drawElements( gl.TRIANGLES, teapotVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0 );
+
+        }
+
+        function tick()
+        {
+            requestAnimationFrame( tick );
+
+            drawScene();
+            animate();
+        }
+
+        var lastTime = 0;
+
+        function animate()
+        {
+            var timeNow = Date.now();
+            if( 0 != lastTime )
+            {
+                var subTime = timeNow - lastTime;
+
+                teapotAngle += 0.05 * subTime;
+            }
+            lastTime = timeNow;
+        }
+
+        var mvMatrixStack = [];
+
+        function mvPushMatrix()
+        {
+            var copy = new okMat4();
+            mvMatrix.clone( copy );
+            mvMatrixStack.push( copy );
+        }
+
+        function mvPopMatrix()
+        {
+            if ( 0 == mvMatrixStack.length )
+            {
+                throw "Invalid popMatrix!";
+            }
+            mvMatrix = mvMatrixStack.pop();
+        }
+
+        // 入口函数
+        function WebGLStart()
+        {
+            var canvas = document.getElementById("lesson_13");
+
+            initWebGL( canvas );
+            initShader();
+            initTextures();
+            loadTeapot();
+
+            gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
+            gl.enable( gl.DEPTH_TEST );
+
+            tick();
+        }
+
+    </script>
+
+</head>
+<body onload="WebGLStart();">
+
+    <canvas id="lesson_13" style="border: none;" width="500" height="500"></canvas>
+
+    <br/>
+
+    <input type="checkbox" id="specular" checked />启用镜面高光<br/>
+    <input type="checkbox" id="lighting" checked />启用光照<br/>
+
+    纹理：
+    <select id="texture">
+        <option value="none">不使用纹理</option>
+        <option selected value="galvanized">电镀金属</option>
+        <option value="earth">地球</option>
+    </select>
+    <br/>
+
+    <h2>材质：</h2>
+
+    <table style="border: 0; padding: 10px;">
+        <tr>
+            <td><b>光泽度：</b>
+            <td><input type="text" id="shininess" value="32.0" />
+        </tr>
+    </table>
+
+    <h2>点光源：</h2>
+
+    <table style="border: 0; padding: 10px;">
+        <tr>
+            <td><b>位置：</b>
+            <td>X: <input type="text" id="pointlightPositionX" value="-10.0" />
+            <td>Y: <input type="text" id="pointlightPositionY" value="4" />
+            <td>Z: <input type="text" id="pointlightPositionZ" value="-20.0" />
+        </tr>
+        <tr>
+            <td><b>镜面反射颜色：</b>
+            <td>R: <input type="text" id="specularR" value="0.8" />
+            <td>G: <input type="text" id="specularG" value="0.8" />
+            <td>B: <input type="text" id="specularB" value="0.8" />
+        </tr>
+        <tr>
+            <td><b>漫反射颜色：</b>
+            <td>R: <input type="text" id="diffuseR" value="0.8" />
+            <td>G: <input type="text" id="diffuseG" value="0.8" />
+            <td>B: <input type="text" id="diffuseB" value="0.8" />
+        </tr>
+    </table>
+
+    <h2>环境光：</h2>
+    <table style="border: 0; padding: 10px;">
+        <tr>
+            <td><b>颜色：</b>
+            <td>R: <input type="text" id="ambientR" value="0.2" />
+            <td>G: <input type="text" id="ambientG" value="0.2" />
+            <td>B: <input type="text" id="ambientB" value="0.2" />
+        </tr>
+    </table>
+
+</body>
+</html>
