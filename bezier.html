@@ -455,14 +455,11 @@
             gl.bindBuffer(gl.ARRAY_BUFFER, bezierTextureBuffer);
             gl.vertexAttribPointer(shaderProgram.vertexCoordAttribute, bezierTextureBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
-            //console.log( bezierBuffer.numItems, bezierTextureBuffer.numItems );
             setMatrixUniforms();
 
             gl.uniform1i( shaderProgram.isCalibration, false );
             gl.uniform1i( shaderProgram.isCalibrationColor, false );
-
-            //gl.drawArrays(gl.POINTS, 0, bezierBuffer.numItems);
-
+            
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bezierIndexBuffer );
             gl.drawElements( gl.TRIANGLES, bezierIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0 );
 
