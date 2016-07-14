@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+    <script src="Oak3D_v_0_5.js"></script>
+
+    <script id="shader-vs" type="shader/vs">
+            attribute vec3 aPosition;
+
+            uniform mat4 uMVMatrix;
+            uniform mat4 uPMatrix;
+
+            void main( void )
+            {
+                gl_Position = uPMatrix * uMVMatrix * vec4( aPosition, 1.0 );
+                gl_PointSize = 2.0;
+            }
+        </script>
+
+    <script id="shader-fs" type="shader/fs">
+
+            // 无这句, 下句报错
+            precision mediump float;
+
+            void main( void )
+            {
+                gl_FragColor = vec4( 1.0, 1.0, 1.0, 1.0 );
+            }
+        </script>
+
+    <script>
+
+        var gl;
+
+        function initWebGL( canvas )
+        {
+            try
+            {
+                gl = canvas.getContext("experimental-webgl");
+
+                gl.viewportWidth = canvas.width;
+                gl.viewportHeight = canvas.height;
+            }catch (e)
+            {
+
+            }
+        }
+
+        function getShader( gl, id )
+        {
+            var shaderScript = document.getElementById( id );
+            if( !shaderScript )
+            {
+                console.log( "getShader return null ");
+                return null;
+            }
+
+            var str = "";
+            var k = shaderScript.firstChild;
+            while(k)
+            {
+                if( 3 === k.nodeType )
+                {
+                    str += k.textContent;
+                }
+                k = k.nextSibling;
+            }
+
+            var shader;
+            if( shaderScript.type == "shader/vs")
+            {
+                shader = gl.createShader( gl.VERTEX_SHADER );
+
+            }else if( shaderScript.type == "shader/fs" )
+            {
+                shader = gl.createShader( gl.FRAGMENT_SHADER );
+            }
+
+            gl.shaderSource( shader, str );
+
+            gl.compileShader( shader );
+
+            return shader;
+        }
+
+        var shaderProgram;
+        function initShader()
+        {
+            var vertexShader    = getShader( gl, "shader-vs");
+            var fragmentShader  = getShader( gl, "shader-fs" );
+
+            shaderProgram = gl.createProgram();
+
+            gl.attachShader( shaderProgram, vertexShader );
+            gl.attachShader( shaderProgram, fragmentShader );
+            gl.linkProgram( shaderProgram );
+            gl.useProgram( shaderProgram );
+
+            shaderProgram.vertexPositionAttribute = gl.getAttribLocation( shaderProgram, "aPosition");
+            gl.enableVertexAttribArray( shaderProgram.vertexPositionAttribute );
+
+            shaderProgram.pMatrix   = gl.getUniformLocation( shaderProgram, "uPMatrix");
+            shaderProgram.mvMatrix  = gl.getUniformLocation( shaderProgram, "uMVMatrix");
+        }
+
+        var mvMatrix;
+        var pMatrix;
+
+        function setMatrixUniforms() {
+            gl.uniformMatrix4fv(shaderProgram.pMatrix, false, pMatrix.toArray());
+            gl.uniformMatrix4fv(shaderProgram.mvMatrix, false, mvMatrix.toArray());
+        }
+
+        /*
+         // 四点确定 Bezier 曲线
+         var a1 = Math.pow( ( 1 - t ), 3 );
+         var a2 = Math.pow( ( 1 - t ), 2 ) * 3 * t;
+         var a3 = 3 * t * t * ( 1 - t );
+         var a4 = t * t * t;
+
+         var x = a1 * pt[ 0 ].x + a2 * pt[ 1 ].x + a3 * pt[ 2 ].x + a4 * pt[ 3 ].x;
+         var y = a1 * pt[ 0 ].y + a2 * pt[ 1 ].y + a3 * pt[ 2 ].y + a4 * pt[ 3 ].y;
+         */
+
+        var bezierBuffer;
+
+        var pBuffer = [];
+
+        function initBuffer()
+        {
+            var pt = [];
+            pt.push( new okVec3( -0.75, -0.75, -0.50 ) );
+            pt.push( new okVec3( -0.25, -0.75,  0.00 ) );
+            pt.push( new okVec3(  0.25, -0.75,  0.00 ) );
+            pt.push( new okVec3(  0.75, -0.75, -0.50 ) );
+            pt.push( new okVec3( -0.75, -0.25, -0.75 ) );
+            pt.push( new okVec3( -0.25, -0.25,  0.50 ) );
+            pt.push( new okVec3(  0.25, -0.25,  0.50 ) );
+            pt.push( new okVec3(  0.75, -0.25, -0.75 ) );
+            pt.push( new okVec3( -0.75,  0.25,  0.00 ) );
+            pt.push( new okVec3( -0.25,  0.25, -0.50 ) );
+            pt.push( new okVec3(  0.25,  0.25, -0.50 ) );
+            pt.push( new okVec3(  0.75,  0.25,  0.00 ) );
+            pt.push( new okVec3( -0.75,  0.75, -0.50 ) );
+            pt.push( new okVec3( -0.25,  0.75, -1.00 ) );
+            pt.push( new okVec3(  0.25,  0.75, -1.00 ) );
+            pt.push( new okVec3(  0.75,  0.75, -0.50 ) );
+
+            bezierBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, bezierBuffer );
+
+            getBezier( pt, 7 );
+
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( pBuffer ), gl.STATIC_DRAW );
+            bezierBuffer.itemSize = 3;
+            bezierBuffer.numItems = pBuffer.length / 3;
+
+            /************************************/
+
+        }
+
+        function pointTimes( c, p )
+        {
+            p.x *= c;
+            p.y *= c;
+            p.z *= c;
+
+            return p;
+        }
+
+        function bezier( t, pt )
+        {
+            var a1 = Math.pow( ( 1 - t ), 3 );
+            var a2 = Math.pow( ( 1 - t ), 2 ) * 3 * t;
+            var a3 = 3 * t * t * ( 1 - t );
+            var a4 = t * t * t;
+
+            var p = new okVec3();
+            p.x = a1 * pt[ 0 ].x + a2 * pt[ 1 ].x + a3 * pt[ 2 ].x + a4 * pt[ 3 ].x;
+            p.y = a1 * pt[ 0 ].y + a2 * pt[ 1 ].y + a3 * pt[ 2 ].y + a4 * pt[ 3 ].y;
+            p.z = a1 * pt[ 0 ].z + a2 * pt[ 1 ].z + a3 * pt[ 2 ].z + a4 * pt[ 3 ].z;
+
+            return p;
+        }
+
+        function getBezier( vertexs, divs )
+        {
+
+            var temp = [];
+            temp[ 0 ] = vertexs[ 3 ];
+            temp[ 1 ] = vertexs[ 7 ];
+            temp[ 2 ] = vertexs[ 11 ];
+            temp[ 3 ] = vertexs[ 15 ];
+
+            var px, py, pyold;
+
+            var last = [];
+
+            for( var v = 0; v <= divs; ++v )
+            {
+                px = v / divs;
+
+                last[ v ] = bezier( px, temp );
+
+                pBuffer.push( last[ v ].x );
+                pBuffer.push( last[ v ].y );
+                pBuffer.push( last[ v ].z );
+            }
+
+
+            for( var u = 1; u <= divs; ++u )
+            {
+                py = u / divs;
+                pyold = ( u - 1.0 ) / divs;
+
+                temp[ 0 ] = bezier( py, [ vertexs[ 0 ], vertexs[ 1 ], vertexs[ 2 ], vertexs[ 3 ] ]);
+                temp[ 1 ] = bezier( py, [ vertexs[ 4 ], vertexs[ 5 ], vertexs[ 6 ], vertexs[ 7 ] ]);
+                temp[ 2 ] = bezier( py, [ vertexs[ 8 ], vertexs[ 9 ], vertexs[ 10 ], vertexs[ 11 ] ]);
+                temp[ 3 ] = bezier( py, [ vertexs[ 12 ], vertexs[ 13 ], vertexs[ 14 ], vertexs[ 15 ] ]);
+
+                for( var l = 0; l <= divs; ++l )
+                {
+                    px = l / divs;
+
+                    last[ l ] = bezier( px, temp );
+
+                    pBuffer.push( last[ l ].x );
+                    pBuffer.push( last[ l ].y );
+                    pBuffer.push( last[ l ].z );
+
+                }
+            }
+
+        }
+
+        var xRot = 0;
+        var yRot = 0;
+
+        // 绘制
+        function drawScene()
+        {
+            gl.viewport( 0, 0, gl.viewportWidth, gl.viewportHeight );
+            gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
+
+            /************************************/
+
+            pMatrix = okMat4Proj(60, gl.viewportWidth / gl.viewportHeight, 0.1, 1000.0);
+            mvMatrix = okMat4Trans(0.0, 0.0, -3.0);
+            mvMatrix.rotX( OAK.SPACE_LOCAL, xRot, true );
+            mvMatrix.rotY( OAK.SPACE_LOCAL, yRot, true );
+
+            /************************************/
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, bezierBuffer);
+            gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, bezierBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+            setMatrixUniforms();
+
+            gl.drawArrays(gl.POINTS, 0, bezierBuffer.numItems);
+
+        }
+
+        var lastTime = 0;
+
+        // 更新旋转角度
+        function animate()
+        {
+            var timeNow = Date.now();
+            if( 0 != lastTime )
+            {
+                var subTime = timeNow - lastTime;
+
+                xRot -= ( 30 * subTime ) / 1000.0;
+                yRot -= ( 50 * subTime ) / 1000.0;
+
+            }
+            lastTime = timeNow;
+        }
+
+        function tick()
+        {
+            requestAnimationFrame( tick );
+
+            drawScene();
+            animate();
+        }
+
+        function WebGLStart()
+        {
+            var canvas = document.getElementById("bezier");
+
+            initWebGL( canvas );
+            initShader();
+            initBuffer();
+
+            gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
+            gl.enable( gl.DEPTH_TEST );
+
+            tick();
+        }
+
+    </script>
+
+</head>
+<body onload="WebGLStart();">
+
+<canvas id="bezier" style="border: none;" width="500" height="500"></canvas>
+
+</body>
+</html>
