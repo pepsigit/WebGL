@@ -8,14 +8,29 @@
 
     <script id="shader-vs" type="shader/vs">
             attribute vec3 aPosition;
+            attribute vec2 aCoord;
 
             uniform mat4 uMVMatrix;
             uniform mat4 uPMatrix;
 
+            uniform bool isCalibration;
+
+            varying vec2 vCoord;
+
             void main( void )
             {
                 gl_Position = uPMatrix * uMVMatrix * vec4( aPosition, 1.0 );
-                gl_PointSize = 2.0;
+
+                if( isCalibration )
+                {
+                    gl_PointSize = 7.0;
+                }
+                else
+                {
+                    gl_PointSize = 2.0;
+                }
+
+                vCoord = aCoord;
             }
         </script>
 
@@ -24,9 +39,26 @@
             // 无这句, 下句报错
             precision mediump float;
 
+            varying vec2 vCoord;
+
+            uniform sampler2D uSampler;
+
+            uniform bool isCalibrationColor;
+
             void main( void )
             {
-                gl_FragColor = vec4( 1.0, 1.0, 1.0, 1.0 );
+                //gl_FragColor = texture2D( uSampler, vec2( vCoord.s, vCoord.t ) );//vec4( 1.0, 1.0, 1.0, 1.0 );
+
+                vec4 color;
+                if( isCalibrationColor )
+                {
+                    color = vec4( 1.0, 0.0, 0.0, 1.0 );
+                }
+                else
+                {
+                    color = texture2D( uSampler, vec2( vCoord.s, vCoord.t ) );;
+                }
+                gl_FragColor = color;
             }
         </script>
 
@@ -101,8 +133,13 @@
             shaderProgram.vertexPositionAttribute = gl.getAttribLocation( shaderProgram, "aPosition");
             gl.enableVertexAttribArray( shaderProgram.vertexPositionAttribute );
 
+            shaderProgram.vertexCoordAttribute = gl.getAttribLocation( shaderProgram, "aCoord");
+            gl.enableVertexAttribArray( shaderProgram.vertexCoordAttribute );
+
             shaderProgram.pMatrix   = gl.getUniformLocation( shaderProgram, "uPMatrix");
             shaderProgram.mvMatrix  = gl.getUniformLocation( shaderProgram, "uMVMatrix");
+            shaderProgram.isCalibration       = gl.getUniformLocation( shaderProgram, "isCalibration");
+            shaderProgram.isCalibrationColor  = gl.getUniformLocation( shaderProgram, "isCalibrationColor");
         }
 
         var mvMatrix;
@@ -111,6 +148,34 @@
         function setMatrixUniforms() {
             gl.uniformMatrix4fv(shaderProgram.pMatrix, false, pMatrix.toArray());
             gl.uniformMatrix4fv(shaderProgram.mvMatrix, false, mvMatrix.toArray());
+        }
+
+        var bezierTexture;
+
+        function initTexture()
+        {
+            bezierTexture = gl.createTexture();
+            bezierTexture.image = new Image();
+
+            bezierTexture.image.onload = function() {
+                handleLoadedTexture( bezierTexture );
+            }
+
+            bezierTexture.image.src = "glass.gif";
+
+        }
+
+        function handleLoadedTexture( texture )
+        {
+            gl.pixelStorei( gl.UNPACK_FLIP_Y_WEBGL, true );
+
+            gl.bindTexture( gl.TEXTURE_2D, texture );
+            gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, texture.image );
+            gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR );
+            gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST );
+            gl.generateMipmap( gl.TEXTURE_2D );
+
+            gl.bindTexture( gl.TEXTURE_2D, null );
         }
 
         /*
@@ -125,11 +190,70 @@
          */
 
         var bezierBuffer;
+        var bezierTextureBuffer;
+        var bezierIndexBuffer;
 
-        var pBuffer = [];
+        var xLineBuffer;
+        var yLineBuffer;
+
+        var calibrationXBuffer;
+        var calibrationYBuffer;
+
+        var vertexsBuffer = [];
+        var uvBuffer = [];
+
+        var divs = 7;
 
         function initBuffer()
         {
+            xLineBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, xLineBuffer );
+
+            var vertexs = [ -1.0, 0.0, 0.0, 1.0, 0.0, 0.0 ];
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( vertexs ), gl.STATIC_DRAW );
+            xLineBuffer.itemSize = 3;
+            xLineBuffer.numItems = 2;
+
+            yLineBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, yLineBuffer );
+
+            vertexs = [ 0.0, -1.0, 0.0, 0.0, 1.0, 0.0 ];
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( vertexs ), gl.STATIC_DRAW );
+            yLineBuffer.itemSize = 3;
+            yLineBuffer.numItems = 2;
+
+            calibrationXBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, calibrationXBuffer );
+
+            vertexs = [ -1.0 , 0.0, 0.0,
+                        -0.75, 0.0, 0.0,
+                        -0.5 , 0.0, 0.0,
+                        -0.25, 0.0, 0.0,
+                         0.0 , 0.0, 0.0,
+                         0.25, 0.0, 0.0,
+                         0.5 , 0.0, 0.0,
+                         0.75, 0.0, 0.0,
+                         1.0 , 0.0, 0.0 ];
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( vertexs ), gl.STATIC_DRAW );
+            calibrationXBuffer.itemSize = 3;
+            calibrationXBuffer.numItems = 9;
+
+            calibrationYBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, calibrationYBuffer );
+
+            vertexs = [ 0.0 , -1.0, 0.0,
+                0.0, -0.75, 0.0,
+                0.0, -0.5 , 0.0,
+                0.0, -0.25, 0.0,
+                0.0, 0.25, 0.0,
+                0.0, 0.5 , 0.0,
+                0.0, 0.75, 0.0,
+                0.0, 1.0 , 0.0 ];
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( vertexs ), gl.STATIC_DRAW );
+            calibrationYBuffer.itemSize = 3;
+            calibrationYBuffer.numItems = 8;
+
+
             var pt = [];
             pt.push( new okVec3( -0.75, -0.75, -0.50 ) );
             pt.push( new okVec3( -0.25, -0.75,  0.00 ) );
@@ -151,13 +275,50 @@
             bezierBuffer = gl.createBuffer();
             gl.bindBuffer( gl.ARRAY_BUFFER, bezierBuffer );
 
-            getBezier( pt, 7 );
+            getBezier( pt, divs );
 
-            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( pBuffer ), gl.STATIC_DRAW );
+            console.log( vertexsBuffer );
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( vertexsBuffer ), gl.STATIC_DRAW );
             bezierBuffer.itemSize = 3;
-            bezierBuffer.numItems = pBuffer.length / 3;
+            bezierBuffer.numItems = vertexsBuffer.length / 3;
 
             /************************************/
+
+            bezierTextureBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ARRAY_BUFFER, bezierTextureBuffer );
+            gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( uvBuffer ), gl.STATIC_DRAW );
+            bezierTextureBuffer.itemSize = 2;
+            bezierTextureBuffer.numItems = uvBuffer.length / 2;
+
+            var indexs = [ 0, 1, 8 ];
+
+            for( var i = 0; i <= divs - 1; ++i )
+            {
+                for( j = 0; j <= divs - 1; ++j )
+                {
+                    var first = ( i * ( divs + 1 ) ) + j;
+                    var second = first + 1;
+                    var third = first + ( divs + 1 );
+
+                    indexs.push( first );
+                    indexs.push( second );
+                    indexs.push( third );
+
+                    first = second;
+                    second = third;
+                    third = second + 1;
+
+                    indexs.push( first );
+                    indexs.push( second );
+                    indexs.push( third );
+                }
+            }
+
+            bezierIndexBuffer = gl.createBuffer();
+            gl.bindBuffer( gl.ELEMENT_ARRAY_BUFFER, bezierIndexBuffer );
+            gl.bufferData( gl.ELEMENT_ARRAY_BUFFER, new Uint16Array( indexs ), gl.STATIC_DRAW );
+            bezierIndexBuffer.itemSize = 1;
+            bezierIndexBuffer.numItems = indexs.length;
 
         }
 
@@ -204,13 +365,10 @@
 
                 last[ v ] = bezier( px, temp );
 
-                pBuffer.push( last[ v ].x );
-                pBuffer.push( last[ v ].y );
-                pBuffer.push( last[ v ].z );
             }
 
 
-            for( var u = 1; u <= divs; ++u )
+            for( var u = 0; u <= divs; ++u )
             {
                 py = u / divs;
                 pyold = ( u - 1.0 ) / divs;
@@ -226,9 +384,11 @@
 
                     last[ l ] = bezier( px, temp );
 
-                    pBuffer.push( last[ l ].x );
-                    pBuffer.push( last[ l ].y );
-                    pBuffer.push( last[ l ].z );
+                    uvBuffer.push( py, px );
+
+                    vertexsBuffer.push( last[ l ].x );
+                    vertexsBuffer.push( last[ l ].y );
+                    vertexsBuffer.push( last[ l ].z );
 
                 }
             }
@@ -247,18 +407,64 @@
             /************************************/
 
             pMatrix = okMat4Proj(60, gl.viewportWidth / gl.viewportHeight, 0.1, 1000.0);
-            mvMatrix = okMat4Trans(0.0, 0.0, -3.0);
+
+            mvMatrix = new okMat4();
+            mvMatrix.translate( OAK.SPACE_WORLD, 0.0, 0.0, -3.0, true );
+
+            /************************************/
+
+            setMatrixUniforms();
+
+            gl.bindBuffer( gl.ARRAY_BUFFER, xLineBuffer );
+            gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, xLineBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.uniform1i( shaderProgram.isCalibration, false );
+            gl.uniform1i( shaderProgram.isCalibrationColor, false );
+            gl.drawArrays( gl.LINES, 0, xLineBuffer.numItems );
+
+            gl.bindBuffer( gl.ARRAY_BUFFER, yLineBuffer );
+            gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, yLineBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.uniform1i( shaderProgram.isCalibration, false );
+            gl.uniform1i( shaderProgram.isCalibrationColor, false );
+            gl.drawArrays( gl.LINES, 0, yLineBuffer.numItems );
+
+            gl.bindBuffer( gl.ARRAY_BUFFER, calibrationXBuffer );
+            gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, calibrationXBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.uniform1i( shaderProgram.isCalibration, true );
+            gl.uniform1i( shaderProgram.isCalibrationColor, true );
+            gl.drawArrays( gl.POINTS, 0, calibrationXBuffer.numItems );
+
+            gl.bindBuffer( gl.ARRAY_BUFFER, calibrationYBuffer );
+            gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, calibrationYBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            gl.uniform1i( shaderProgram.isCalibration, true );
+            gl.uniform1i( shaderProgram.isCalibrationColor, true );
+            gl.drawArrays( gl.POINTS, 0, calibrationYBuffer.numItems );
+            /************************************/
+
+            mvMatrix = new okMat4();
+            mvMatrix.translate( OAK.SPACE_WORLD, 0.0, 0.0, -3.0, true );
             mvMatrix.rotX( OAK.SPACE_LOCAL, xRot, true );
             mvMatrix.rotY( OAK.SPACE_LOCAL, yRot, true );
 
-            /************************************/
+            gl.activeTexture( gl.TEXTURE0 );
+            gl.bindTexture( gl.TEXTURE_2D, bezierTexture );
+            gl.uniform1i( shaderProgram.uSample, 0 );
 
             gl.bindBuffer(gl.ARRAY_BUFFER, bezierBuffer);
             gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, bezierBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
+            gl.bindBuffer(gl.ARRAY_BUFFER, bezierTextureBuffer);
+            gl.vertexAttribPointer(shaderProgram.vertexCoordAttribute, bezierTextureBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+            //console.log( bezierBuffer.numItems, bezierTextureBuffer.numItems );
             setMatrixUniforms();
 
-            gl.drawArrays(gl.POINTS, 0, bezierBuffer.numItems);
+            gl.uniform1i( shaderProgram.isCalibration, false );
+            gl.uniform1i( shaderProgram.isCalibrationColor, false );
+
+            //gl.drawArrays(gl.POINTS, 0, bezierBuffer.numItems);
+
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bezierIndexBuffer );
+            gl.drawElements( gl.TRIANGLES, bezierIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0 );
 
         }
 
@@ -293,7 +499,9 @@
 
             initWebGL( canvas );
             initShader();
+            initTexture();
             initBuffer();
+
 
             gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
             gl.enable( gl.DEPTH_TEST );
