@@ -47,7 +47,6 @@
 
             void main( void )
             {
-                //gl_FragColor = texture2D( uSampler, vec2( vCoord.s, vCoord.t ) );//vec4( 1.0, 1.0, 1.0, 1.0 );
 
                 vec4 color;
                 if( isCalibrationColor )
@@ -56,7 +55,7 @@
                 }
                 else
                 {
-                    color = texture2D( uSampler, vec2( vCoord.s, vCoord.t ) );;
+                    color = texture2D( uSampler, vec2( vCoord.s, vCoord.t ) );
                 }
                 gl_FragColor = color;
             }
