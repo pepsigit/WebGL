@@ -2,7 +2,7 @@
 
 ---
 
-* <font color=>**lesson_1:三角形与正方形**</font>
+* <font color=#8B008B>**lesson_1:三角形与正方形**</font>
 
 ![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/1.png)
 
@@ -10,7 +10,7 @@
 
 ---
 
-* <font color=>**lesson_2:旋转**</font>
+* <font color=#8B008B>**lesson_2:旋转**</font>
 
 ![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/2.gif)
 
@@ -18,7 +18,7 @@
 
 ---
 
-* <font color=>**lesson_3:三角锥与正方体**</font>
+* <font color=#8B008B>**lesson_3:三角锥与正方体**</font>
 
 ![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/3.gif)
 
@@ -26,7 +26,7 @@
 
 ---
 
-* <font color=>**lesson_4:纹理载入**</font>
+* <font color=#8B008B>**lesson_4:纹理载入**</font>
 
 ![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/4.gif)
 
@@ -34,13 +34,13 @@
 
 ---
 
-* <font color=>**lesson_5:键盘输入和纹理过滤**</font>
+* <font color=#8B008B>**lesson_5:键盘输入和纹理过滤**</font>
 
 [lesson_5](http://oliner.cn/2016/06/06/WebGL-%E9%94%AE%E7%9B%98%E8%BE%93%E5%85%A5%E5%92%8C%E7%BA%B9%E7%90%86%E8%BF%87%E6%BB%A4/)
 
 ---
 
-* <font color=>**lesson_6:平行光和环境光**</font>
+* <font color=#8B008B>**lesson_6:平行光和环境光**</font>
 
 ![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/5.png)
 
@@ -48,7 +48,7 @@
 
 ---
 
-* <font color=>**lesson_7:深度缓存、透明度和混合**</font>
+* <font color=#8B008B>**lesson_7:深度缓存、透明度和混合**</font>
 
 ![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/6.gif)
 
@@ -56,7 +56,7 @@
 
 ---
 
-* <font color=>**lesson_8:多物体运动**</font>
+* <font color=#8B008B>**lesson_8:多物体运动**</font>
 
 ![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/7.gif)
 
@@ -64,7 +64,7 @@
 
 ---
 
-* <font color=>**lesson_9:载入世界以及相机**</font>
+* <font color=#8B008B>**lesson_9:载入世界以及相机**</font>
 
 ![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/9.gif)
 
@@ -72,7 +72,7 @@
 
 ---
 
-* <font color=>**lesson_10:球体、旋转矩阵和鼠标事件**</font>
+* <font color=#8B008B>**lesson_10:球体、旋转矩阵和鼠标事件**</font>
 
 ![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/10.gif)
 
@@ -80,7 +80,7 @@
 
 ---
 
-* <font color=>**lesson_11:点光源**</font>
+* <font color=#8B008B>**lesson_11:点光源**</font>
 
 ![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/11.gif)
 
@@ -88,7 +88,7 @@
 
 ---
 
-* <font color=>**lesson_12:片元级光照与多个Program对象**</font>
+* <font color=#8B008B>**lesson_12:片元级光照与多个Program对象**</font>
 
 ![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/12.gif)
 
@@ -96,7 +96,7 @@
 
 ---
 
-* <font color=>**lesson_13:镜面高光和载入JSON模型**</font>
+* <font color=#8B008B>**lesson_13:镜面高光和载入JSON模型**</font>
 
 ![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/13.gif)
 
@@ -104,7 +104,7 @@
 
 ---
 
-* <font color=>**lesson_14:渲染到纹理**</font>
+* <font color=#8B008B>**lesson_14:渲染到纹理**</font>
 
 ![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/14.gif)
 
