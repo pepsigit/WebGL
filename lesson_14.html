@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Title</title>
 
-    <script src="Oak3D_v_0_5.js"></script>
+    <script src="lib/Oak3D_v_0_5.js"></script>
 
     <!-- 逐片元顶点着色器 -->
     <script id="use-fragment-shader-vs" type="shader/vs">
@@ -221,7 +221,7 @@
                 handleLoadedTexture( earthSpecularMapTexture );
             }
 
-            earthSpecularMapTexture.image.src = "earth-specular.gif";
+            earthSpecularMapTexture.image.src = "res/earth-specular.gif";
 
 
             earthColorMapTexture = gl.createTexture();
@@ -231,7 +231,7 @@
                 handleLoadedTexture( earthColorMapTexture );
             }
 
-            earthColorMapTexture.image.src = "earth.jpg";
+            earthColorMapTexture.image.src = "res/earth.jpg";
 
         }
 

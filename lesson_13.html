@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Title</title>
 
-    <script src="Oak3D_v_0_5.js"></script>
+    <script src="lib/Oak3D_v_0_5.js"></script>
 
     <!-- 逐片元顶点着色器 -->
     <script id="use-fragment-shader-vs" type="shader/vs">
@@ -222,7 +222,7 @@
                 handleLoadedTexture( galvanizedTexture );
             }
 
-            galvanizedTexture.image.src = "plating_metal.jpg";
+            galvanizedTexture.image.src = "res/plating_metal.jpg";
 
 
             earthTexture = gl.createTexture();
@@ -232,7 +232,7 @@
                 handleLoadedTexture( earthTexture );
             }
 
-            earthTexture.image.src = "earth.jpg";
+            earthTexture.image.src = "res/earth.jpg";
 
         }
 
@@ -252,7 +252,7 @@
         function loadTeapot()
         {
             var request = new XMLHttpRequest();
-            request.open("GET", "Teapot.json");
+            request.open("GET", "res/Teapot.json");
             request.onreadystatechange = function()
             {
                 if( 4 == request.readyState )
@@ -304,9 +304,9 @@
             gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
 
             if( ( null == teapotVertexPositionBuffer ) ||
-                ( null == teapotVertexTextureCoordBuffer ) ||
-                ( null == teapotVertexNormalBuffer ) ||
-                ( null == teapotVertexIndexBuffer ) )
+                    ( null == teapotVertexTextureCoordBuffer ) ||
+                    ( null == teapotVertexNormalBuffer ) ||
+                    ( null == teapotVertexIndexBuffer ) )
             {
                 return ;
             }
@@ -451,62 +451,62 @@
 </head>
 <body onload="WebGLStart();">
 
-    <canvas id="lesson_13" style="border: none;" width="500" height="500"></canvas>
+<canvas id="lesson_13" style="border: none;" width="500" height="500"></canvas>
 
-    <br/>
+<br/>
 
-    <input type="checkbox" id="specular" checked />启用镜面高光<br/>
-    <input type="checkbox" id="lighting" checked />启用光照<br/>
+<input type="checkbox" id="specular" checked />启用镜面高光<br/>
+<input type="checkbox" id="lighting" checked />启用光照<br/>
 
-    纹理：
-    <select id="texture">
-        <option value="none">不使用纹理</option>
-        <option selected value="galvanized">电镀金属</option>
-        <option value="earth">地球</option>
-    </select>
-    <br/>
+纹理：
+<select id="texture">
+    <option value="none">不使用纹理</option>
+    <option selected value="galvanized">电镀金属</option>
+    <option value="earth">地球</option>
+</select>
+<br/>
 
-    <h2>材质：</h2>
+<h2>材质：</h2>
 
-    <table style="border: 0; padding: 10px;">
-        <tr>
-            <td><b>光泽度：</b>
-            <td><input type="text" id="shininess" value="32.0" />
-        </tr>
-    </table>
+<table style="border: 0; padding: 10px;">
+    <tr>
+        <td><b>光泽度：</b>
+        <td><input type="text" id="shininess" value="32.0" />
+    </tr>
+</table>
 
-    <h2>点光源：</h2>
+<h2>点光源：</h2>
 
-    <table style="border: 0; padding: 10px;">
-        <tr>
-            <td><b>位置：</b>
-            <td>X: <input type="text" id="pointlightPositionX" value="-10.0" />
-            <td>Y: <input type="text" id="pointlightPositionY" value="4" />
-            <td>Z: <input type="text" id="pointlightPositionZ" value="-20.0" />
-        </tr>
-        <tr>
-            <td><b>镜面反射颜色：</b>
-            <td>R: <input type="text" id="specularR" value="0.8" />
-            <td>G: <input type="text" id="specularG" value="0.8" />
-            <td>B: <input type="text" id="specularB" value="0.8" />
-        </tr>
-        <tr>
-            <td><b>漫反射颜色：</b>
-            <td>R: <input type="text" id="diffuseR" value="0.8" />
-            <td>G: <input type="text" id="diffuseG" value="0.8" />
-            <td>B: <input type="text" id="diffuseB" value="0.8" />
-        </tr>
-    </table>
+<table style="border: 0; padding: 10px;">
+    <tr>
+        <td><b>位置：</b>
+        <td>X: <input type="text" id="pointlightPositionX" value="-10.0" />
+        <td>Y: <input type="text" id="pointlightPositionY" value="4" />
+        <td>Z: <input type="text" id="pointlightPositionZ" value="-20.0" />
+    </tr>
+    <tr>
+        <td><b>镜面反射颜色：</b>
+        <td>R: <input type="text" id="specularR" value="0.8" />
+        <td>G: <input type="text" id="specularG" value="0.8" />
+        <td>B: <input type="text" id="specularB" value="0.8" />
+    </tr>
+    <tr>
+        <td><b>漫反射颜色：</b>
+        <td>R: <input type="text" id="diffuseR" value="0.8" />
+        <td>G: <input type="text" id="diffuseG" value="0.8" />
+        <td>B: <input type="text" id="diffuseB" value="0.8" />
+    </tr>
+</table>
 
-    <h2>环境光：</h2>
-    <table style="border: 0; padding: 10px;">
-        <tr>
-            <td><b>颜色：</b>
-            <td>R: <input type="text" id="ambientR" value="0.2" />
-            <td>G: <input type="text" id="ambientG" value="0.2" />
-            <td>B: <input type="text" id="ambientB" value="0.2" />
-        </tr>
-    </table>
+<h2>环境光：</h2>
+<table style="border: 0; padding: 10px;">
+    <tr>
+        <td><b>颜色：</b>
+        <td>R: <input type="text" id="ambientR" value="0.2" />
+        <td>G: <input type="text" id="ambientG" value="0.2" />
+        <td>B: <input type="text" id="ambientB" value="0.2" />
+    </tr>
+</table>
 
 </body>
 </html>

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Title</title>
 
-    <script src="Oak3D_v_0_5.js"></script>
+    <script src="lib/Oak3D_v_0_5.js"></script>
 
 
     <script id="per-fragment-lighting-vs" type="x-shader/x-vertex">
@@ -222,14 +222,14 @@
             moonTexture.image.onload = function () {
                 handleLoadedTexture(moonTexture)
             }
-            moonTexture.image.src = "moon.gif";
+            moonTexture.image.src = "res/moon.gif";
 
             crateTexture = gl.createTexture();
             crateTexture.image = new Image();
             crateTexture.image.onload = function () {
                 handleLoadedTexture(crateTexture)
             }
-            crateTexture.image.src = "crate.gif";
+            crateTexture.image.src = "res/crate.gif";
         }
 
 
@@ -604,7 +604,7 @@
 
         function loadLaptop() {
             var request = new XMLHttpRequest();
-            request.open("GET", "macbook.json");
+            request.open("GET", "res/macbook.json");
             request.onreadystatechange = function () {
                 if (request.readyState == 4) {
                     handleLoadedLaptop(JSON.parse(request.responseText));

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Title</title>
 
-    <script src="Oak3D_v_0_5.js"></script>
+    <script src="lib/Oak3D_v_0_5.js"></script>
 
     <script id="shader-vs" type="shader/vs">
             attribute vec3 aPosition;
@@ -160,7 +160,7 @@
                 handleLoadedTexture( bezierTexture );
             }
 
-            bezierTexture.image.src = "glass.gif";
+            bezierTexture.image.src = "res/glass.gif";
 
         }
 
@@ -276,7 +276,6 @@
 
             getBezier( pt, divs );
 
-            console.log( vertexsBuffer );
             gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( vertexsBuffer ), gl.STATIC_DRAW );
             bezierBuffer.itemSize = 3;
             bezierBuffer.numItems = vertexsBuffer.length / 3;
@@ -458,7 +457,7 @@
 
             gl.uniform1i( shaderProgram.isCalibration, false );
             gl.uniform1i( shaderProgram.isCalibrationColor, false );
-            
+
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bezierIndexBuffer );
             gl.drawElements( gl.TRIANGLES, bezierIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0 );
 
