@@ -102,12 +102,22 @@
 
 [lesson_13](http://oliner.cn/2016/06/22/WebGL-%E9%95%9C%E9%9D%A2%E9%AB%98%E5%85%89%E5%92%8C%E8%BD%BD%E5%85%A5JSON%E6%A8%A1%E5%9E%8B/)
 
+
 ---
 
-* <font color=#8B008B>**lesson_14:渲染到纹理**</font>
+* <font color=#8B008B>**lesson_14:高光贴图**</font>
+
+![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/17.gif)
+
+[lesson_14](http://oliner.cn/2016/07/17/WebGL-%E9%AB%98%E5%85%89%E8%B4%B4%E5%9B%BE/)
+
+
+---
+
+* <font color=#8B008B>**lesson_15:渲染到纹理**</font>
 
 ![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/14.gif)
 
-[lesson_14](http://oliner.cn/2016/06/23/WebGL-%E6%B8%B2%E6%9F%93%E5%88%B0%E7%BA%B9%E7%90%86/)
+[lesson_15](http://oliner.cn/2016/06/23/WebGL-%E6%B8%B2%E6%9F%93%E5%88%B0%E7%BA%B9%E7%90%86/)
 
 ---
