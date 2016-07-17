@@ -109,7 +109,7 @@
 
 ![](https://raw.githubusercontent.com/pepsigit/Pictures/master/WebGL/17.gif)
 
-[lesson_14](http://oliner.cn/2016/07/17/WebGL-%E9%AB%98%E5%85%89%E8%B4%B4%E5%9B%BE/)
+[lesson_14](http://oliner.cn/2016/06/22/WebGL-%E9%AB%98%E5%85%89%E8%B4%B4%E5%9B%BE/)
 
 
 ---
